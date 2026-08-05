@@ -1,0 +1,133 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+dist-binary/
+.pyinstaller/
+node_modules/
+# The production Web bundle is intentionally checked in and release-verified.
+!/frontend/web/dist/
+!/frontend/web/dist/**
+.venv/
+venv/
+env/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+
+# user state
+/skills/
+.autors/
+.argus-skill/
+.argus_subagents/
+# per-round failing-check logs (give-access artifacts, never benchmark evidence)
+.argus/
+# local Web mission-view coordination lock
+/mission-view.lock
+
+# scratch
+benchmarks/results/
+.tmp_pytest/
+.worktrees/
+tmp-review-skills/
+tmp-skill-a/
+answer.txt
+/$ARGUS_SKILL_HARBOR_DECISIONS_LOG
+/$ARGUS_SKILL_HARBOR_SKILLS_DIR
+/argus/
+/codex/
+/jobs/
+/experiments/*
+!/experiments/README.md
+benchmarks/evidence/**/agent/oracle.txt
+benchmarks/evidence/**/agent/sessions/
+
+# editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
+.codex
+.superpowers/
+
+# vendored / scratch directories (not part of argus-skill)
+pyknotid-scratch/
+
+# smoke artifacts
+hello-mission-smoke.txt
+
+# fiction_writing eval run outputs (generated + timestamped; regenerate via run_evals.py)
+argus_skill/verticals/fiction_writing/evaluations/reports/
+
+# per-user secrets / local overrides — API keys, tokens, DB passwords NEVER commit
+*.api-key.local
+.env
+.env.local
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*_rsa
+id_dsa
+secrets.json
+secrets.yaml
+secrets.yml
+credentials.json
+credentials.yaml
+credentials.yml
+
+# 融资 / BP / VC / 私有对外介绍 — 绝不进入主分支
+/vc_materials/
+/docs/bp_figures/
+/docs/Argus_VC_Deck.pdf
+/docs/Argus_商业计划书.md
+/docs/Argus_商业计划书.pdf
+/docs/Argus_项目介绍.md
+/docs/Argus_一页纸概览.md
+/docs/Argus_微信文案.md
+/docs/argus_skill_auto_research_pitch.md
+/docs/argus_skill_auto_research_pitch.pptx
+docs/Argus_BP*
+
+# 日期化计划 / 评审 / 事故 / 展示快照只留本地或 Git 历史，不回流 main
+/ARGUS_BUG_*.md
+/LANES.md
+/UX_BEFORE_AFTER.md
+/docs/analysis/
+/docs/experiment/
+/docs/goals/
+/docs/incidents/
+/docs/reviews/
+/docs/showcase/
+/docs/superpowers/*
+!/docs/superpowers/specs/
+/docs/superpowers/specs/*
+!/docs/superpowers/specs/2026-07-15-ai-redraw-structural-report-figures-design.md
+/docs/test-health/
+.manager_session.json
+.manager_session.lock
+
+# downloaded external benchmark / eval harnesses + VM images — NEVER repo
+# artifacts (a stray `git add -A` here would try to commit a 35GB qcow2 VM).
+/docker_vm_data/
+/benchmarks/
+/code/
+/data/
+/logs/
+/argus_glm_logs*.tar.gz
+/paper/
+
+# proprietary binary/npm release staging
+/dist-binary/
+/.pyinstaller/
