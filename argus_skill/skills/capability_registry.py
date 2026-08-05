@@ -113,8 +113,15 @@ def _discover_external() -> str | None:
         for child in children:
             for name in _EXTERNAL_FILE_NAMES:
                 cand = child / name
-                if cand.is_file():
-                    return str(cand)
+                try:
+                    if cand.is_file():
+                        return str(cand)
+                except OSError:
+                    # Shared temporary roots can contain service-private
+                    # directories that are visible but not stat-able. External
+                    # capability discovery is best-effort; skip inaccessible
+                    # candidates instead of breaking an otherwise-local gate.
+                    continue
     return None
 
 

@@ -178,6 +178,7 @@ artifacts = [
 ]
 include = [
   "argus_skill/**",
+  "tests/**",
   "frontend/tui/bundle/**",
   "README.md",
 ]
