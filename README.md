@@ -148,6 +148,42 @@ Never expose `0.0.0.0` without `ARGUS_SKILL_WEB_TOKEN`.
 
 ---
 
+## ◆ Advanced usage guide
+
+> Argus is not only something you run. It is a runtime you can reshape.
+
+If you are an agent enthusiast, we recommend deploying Argus locally and making it your own. Adapt the role prompts, workflow, review boundaries, tools, and operating conventions until the full loop fits the way you work.
+
+### Build your own vertical
+
+A vertical gives Argus domain-specific stages, Skills, evidence expectations, and completion criteria. You can add one for your own field so that planning, execution, and review reflect the standards of the domain you care about—not a generic workflow.
+
+Good extensions include:
+
+- a workflow tailored to your research or engineering process;
+- domain Skills, tools, datasets, and evaluation methods;
+- custom stage and review criteria;
+- integrations with your existing infrastructure;
+- tests that preserve your preferred operating contract.
+
+### Operate Argus through another agent
+
+Using another agent environment as the outer control layer can also be a powerful workflow. GitHub Copilot, Pi, Codex, Claude Code, OpenCode, OpenClaw, or Hermes can invoke the Argus CLI, inspect its state, operate its local Web/API surface, and help evolve your deployment.
+
+GitHub Copilot CLI, Pi, Codex CLI, Claude Code, and OpenCode can be configured as native Argus backends. OpenClaw and Hermes are best used as external agents that operate a local Argus deployment through its CLI or Web/API interface.
+
+Useful entry points for an outer agent:
+
+```bash
+argus --doctor
+argus --status
+argus --web --no-open
+```
+
+The most capable setup is often not a stock installation, but an Argus instance that has been deliberately adapted to your own ambitious field and way of working.
+
+---
+
 ## ↻ Update
 
 ```bash

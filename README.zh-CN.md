@@ -148,6 +148,42 @@ http://SERVER_IP:8799/?token=YOUR_TOKEN
 
 ---
 
+## ◆ 高级使用指南
+
+> Argus 不只是一个拿来运行的工具，更是一个可以被你重新塑造的运行时。
+
+如果你是 Agent 的狂热爱好者，我们推荐你在本地部署一套 Argus，并亲自对它进行改造。你可以调整角色 Prompt、工作流、审查边界、工具和运行约定，让整套闭环真正适合你的工作方式。
+
+### 创建你自己的 Vertical
+
+Vertical 可以为 Argus 提供特定领域的阶段、Skill、证据要求与完成标准。你可以为自己的领域加入一个 Vertical，让规划、执行和审查遵循该领域真正重要的规范，而不是停留在通用流程上。
+
+值得尝试的扩展包括：
+
+- 针对你的科研或工程过程定制工作流；
+- 加入领域 Skill、工具、数据集与评测方法；
+- 定义专属的阶段和 Reviewer 标准；
+- 对接你已有的基础设施；
+- 用测试固定你希望长期保持的运行契约。
+
+### 通过其他 Agent 调用 Argus
+
+把另一个 Agent 环境作为外层控制入口，同样是一种很强的使用方式。你可以通过 GitHub Copilot、Pi、Codex、Claude Code、OpenCode、OpenClaw 或 Hermes 调用 Argus CLI、检查运行状态、操作本地 Web/API，并继续迭代你的 Argus 部署。
+
+GitHub Copilot CLI、Pi、Codex CLI、Claude Code 与 OpenCode 可以直接配置为 Argus 的原生 backend；OpenClaw 与 Hermes 更适合作为外层 Agent，通过 CLI 或 Web/API 操作本地 Argus。
+
+适合交给外层 Agent 的常用入口：
+
+```bash
+argus --doctor
+argus --status
+argus --web --no-open
+```
+
+最强大的 Argus 往往不是未经修改的默认安装，而是一套被你认真改造成更适合自己伟大领域与工作方式的 Argus。
+
+---
+
 ## ↻ 更新
 
 ```bash
