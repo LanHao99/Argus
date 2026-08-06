@@ -6,6 +6,8 @@
 
 Turn an open-ended goal into a durable workflow that can plan, build, verify, pause, and resume.
 
+**Official open-source release: on the way · Current version: Preview v0.1.1**
+
 [Website](https://argusbot.cn) · [Demo](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [Technical Report](technical_report/argus-technical-report.pdf) · [简体中文](README.zh-CN.md)
 
 `Manager` → `Planner` → `Engineer` ⇄ `Reviewer`

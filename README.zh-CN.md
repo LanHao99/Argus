@@ -6,6 +6,8 @@
 
 把开放目标变成可规划、可执行、可审查、可暂停并继续的长期工作流。
 
+**正式开源版 on the way · 当前版本：Preview v0.1.1**
+
 [官方网站](https://argusbot.cn) · [演示视频](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [技术报告](technical_report/argus-technical-report.pdf) · [English](README.md)
 
 `Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
