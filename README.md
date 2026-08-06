@@ -10,7 +10,7 @@ Long-running agent work that can plan, execute, verify, pause, and continue beyo
 
 **Preview v0.1.1 · Official open-source release on the way.**
 
-[Website](https://argusbot.cn) · [Live Demos](https://argusbot.cn/start.html) · [Technical Report · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · **English** / [简体中文](README.zh-CN.md)
+[Website](https://argusbot.cn) · [Technical Report · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [WeChat Community](#wechat-community) · **English** / [简体中文](README.zh-CN.md)
 
 `Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
 
@@ -187,38 +187,10 @@ git pull --ff-only
 
 Argus detects stale local WebAPI and daemon processes and replaces them at a controlled task boundary.
 
-## ▶ Real runs
+## WeChat community
 
-These are complete or condensed recordings of real Argus tasks, not staged UI mockups.
+Scan the QR code below to join the Argus community. The expiry date is printed in the image; if it has expired, open an Issue and ask the maintainers for the latest code.
 
-### Research direction to paper delivery
-
-<a href="https://argusbot.cn/assets/demos/argus-research-to-paper-condensed.mp4">
-  <img src="docs/assets/demos/research-to-paper.gif" width="100%" alt="Real Argus research-to-paper run">
-</a>
-
-### Web UI walkthrough
-
-<a href="https://argusbot.cn/assets/demos/argus-web-boxiu-86b683ba.webm">
-  <img src="docs/assets/demos/web-ui.gif" width="100%" alt="Real Argus Web UI walkthrough">
-</a>
-
-### AMA benchmark run
-
-<a href="https://argusbot.cn/assets/demos/argus-ama-benchmark-condensed.mp4">
-  <img src="docs/assets/demos/ama-benchmark.gif" width="100%" alt="Real Argus AMA benchmark run">
-</a>
-
-### Literary creation
-
-<a href="https://argusbot.cn/assets/demos/argus-literary-creation.mp4">
-  <img src="docs/assets/demos/literary-creation.gif" width="100%" alt="Real Argus literary-creation run">
-</a>
-
-### Computational mathematics
-
-<a href="https://argusbot.cn/assets/demos/argus-math-erdos-straus.mp4">
-  <img src="docs/assets/demos/computational-math.gif" width="100%" alt="Real Argus computational-mathematics run">
-</a>
-
-Click any recording to open the complete source video.
+<p align="center">
+  <img src="docs/assets/argus-wechat-group.jpg" width="360" alt="Argus WeChat community QR code">
+</p>

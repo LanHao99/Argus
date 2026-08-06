@@ -10,7 +10,7 @@
 
 **当前为 Preview v0.1.1 · 正式开源版正在路上。**
 
-[官方网站](https://argusbot.cn) · [真实运行演示](https://argusbot.cn/zh/start.html) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [English](README.md) / **简体中文**
+[官方网站](https://argusbot.cn) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [微信群](#微信群) · [English](README.md) / **简体中文**
 
 `Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
 
@@ -187,38 +187,10 @@ git pull --ff-only
 
 Argus 会识别过期的本地 WebAPI 与 daemon，并在受控任务边界完成替换。
 
-## ▶ 真实运行回放
+## 微信群
 
-以下内容来自真实 Argus 任务的完整或压缩回放，不是为了展示而制作的静态 UI。
+扫码加入 Argus 交流群。二维码有效期以图片中的提示为准；如果已经过期，请在 Issue 中联系维护者更新。
 
-### 从研究方向到论文交付
-
-<a href="https://argusbot.cn/assets/demos/argus-research-to-paper-condensed.mp4">
-  <img src="docs/assets/demos/research-to-paper.gif" width="100%" alt="Argus 从研究方向到论文交付的真实运行回放">
-</a>
-
-### Web UI 真实操作
-
-<a href="https://argusbot.cn/assets/demos/argus-web-boxiu-86b683ba.webm">
-  <img src="docs/assets/demos/web-ui.gif" width="100%" alt="Argus Web UI 真实操作回放">
-</a>
-
-### AMA Benchmark
-
-<a href="https://argusbot.cn/assets/demos/argus-ama-benchmark-condensed.mp4">
-  <img src="docs/assets/demos/ama-benchmark.gif" width="100%" alt="Argus AMA Benchmark 真实运行回放">
-</a>
-
-### 文学创作
-
-<a href="https://argusbot.cn/assets/demos/argus-literary-creation.mp4">
-  <img src="docs/assets/demos/literary-creation.gif" width="100%" alt="Argus 文学创作真实运行回放">
-</a>
-
-### 计算数学
-
-<a href="https://argusbot.cn/assets/demos/argus-math-erdos-straus.mp4">
-  <img src="docs/assets/demos/computational-math.gif" width="100%" alt="Argus 计算数学真实运行回放">
-</a>
-
-点击任意动态回放，即可打开对应的完整原视频。
+<p align="center">
+  <img src="docs/assets/argus-wechat-group.jpg" width="360" alt="Argus 微信交流群二维码">
+</p>
