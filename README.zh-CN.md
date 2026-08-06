@@ -7,7 +7,7 @@
     &nbsp;·&nbsp;
     <a href="https://www.youtube.com/watch?v=i8Qy9HCboQE"><strong>演示视频</strong></a>
     &nbsp;·&nbsp;
-    <a href="technical_report/argus-technical-report.pdf"><strong>技术报告</strong></a>
+    <a href="https://arxiv.org/pdf/2608.05144"><strong>技术报告 · arXiv:2608.05144</strong></a>
     &nbsp;·&nbsp;
     <a href="README.md"><strong>English</strong></a>
   </p>
