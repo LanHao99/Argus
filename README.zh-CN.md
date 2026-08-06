@@ -1,82 +1,51 @@
 <div align="center">
-  <h1>ARGUS</h1>
-  <p><strong>让自主科研真正持续运行。</strong></p>
-  <p>面向长期 Agent 的持久运行时：能够规划、执行、验证、暂停，并在一次模型调用之后继续推进。</p>
-  <p>
-    <a href="https://argusbot.cn"><strong>官方网站</strong></a>
-    &nbsp;·&nbsp;
-    <a href="https://www.youtube.com/watch?v=i8Qy9HCboQE"><strong>演示视频</strong></a>
-    &nbsp;·&nbsp;
-    <a href="https://arxiv.org/pdf/2608.05144"><strong>技术报告 · arXiv:2608.05144</strong></a>
-    &nbsp;·&nbsp;
-    <a href="README.md"><strong>English</strong></a>
-  </p>
-  <p>
-    <code>PREVIEW · v0.1.1</code>
-    &nbsp;
-    <code>正式开源版 · ON THE WAY</code>
-  </p>
+
+# Argus
+
+**面向科研与工程的持久、可审查自主运行时。**
+
+让长期 Agent 能够规划、执行、验证、暂停，并在一次模型调用之后继续推进。
+
+[官方网站](https://argusbot.cn) · [演示视频](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144)
+
+<a href="README.md"><kbd>English</kbd></a>&nbsp;&nbsp;<a href="README.zh-CN.md"><kbd><strong>简体中文</strong></kbd></a>
+
 </div>
 
----
+> [!NOTE]
+> **当前为 Preview v0.1.1。** 正式开源版正在路上。
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>持久，而不是一次性</h3>
-      任务、检查点、决策、Skill 与审查证据会跨 session 和进程升级持续保存。
-    </td>
-    <td width="50%" valign="top">
-      <h3>默认独立审查</h3>
-      执行与验证相互分离；每个正常回合都以独立 Reviewer 的判断结束。
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>Agent 原生工作方式</h3>
-      角色直接使用真实文件、工具、终端、实验和产物，而不是被限制在封闭的流程编辑器中。
-    </td>
-    <td width="50%" valign="top">
-      <h3>为扩展而设计</h3>
-      通过角色规则、工具、阶段、证据标准和 Vertical，把运行时改造成真正适合你的系统。
-    </td>
-  </tr>
-</table>
+## 为什么选择 Argus
 
-## 一个运行时，四种权威
+大多数 Agent 面向一次对话或一次编码回合设计。Argus 面向真正需要持续推进的工作：保存状态、分离执行与判断，并从已经验证的进展继续，而不是每次重新开始。
 
-<table>
-  <tr>
-    <td width="25%" valign="top">
-      <strong>01 · MANAGER</strong><br><sub>控制</sub><br><br>
-      理解 operator 意图、选择工作流，并独占阶段迁移权。
-    </td>
-    <td width="25%" valign="top">
-      <strong>02 · PLANNER</strong><br><sub>方向</sub><br><br>
-      选择下一项高价值任务，并定义它必须产出的证据。
-    </td>
-    <td width="25%" valign="top">
-      <strong>03 · ENGINEER</strong><br><sub>执行</sub><br><br>
-      实现代码、开展调研、运行实验，并生成可检查的产物。
-    </td>
-    <td width="25%" valign="top">
-      <strong>04 · REVIEWER</strong><br><sub>验证</sub><br><br>
-      独立检查正确性、证据、局限和完成状态。
-    </td>
-  </tr>
-</table>
+- **持久，而不是一次性** — 任务、检查点、决策、Skill 与证据会跨 session 和进程升级保存。
+- **默认独立审查** — 执行与验证相互分离；每个正常回合都以独立 Reviewer 的判断结束。
+- **Agent 原生工作方式** — 角色直接使用真实文件、终端、工具、实验和产物。
+- **可扩展到不同领域** — 自定义 Vertical 可以定义自己的阶段、Skill、工具、证据要求与完成标准。
 
-Argus 通过持久项目状态连接这四种权威。项目可以停止、恢复、跨运行时替换，并从最近一次已验证位置继续推进。
+## 运行模型
 
-**原生 Agent Backend** &nbsp; `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode`
+| | 权威 | 职责 |
+|---:|---|---|
+| `01` | **Manager · 控制** | 理解 operator 意图、选择工作流，并独占阶段迁移权。 |
+| `02` | **Planner · 方向** | 选择下一项高价值任务，并定义它必须产出的证据。 |
+| `03` | **Engineer · 执行** | 实现代码、开展调研、运行实验，并生成可检查的产物。 |
+| `04` | **Reviewer · 验证** | 独立检查正确性、证据、局限和完成状态。 |
 
----
+项目可以停止、恢复、跨运行时替换，并从最近一次已验证位置继续推进。
 
-## 三步开始
+**原生 Backend：** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode`
 
-### 1 · 安装
+## 快速开始
 
-**环境要求：** Python 3.11+、Node.js 22+，以及至少一个已完成登录鉴权的 Agent CLI。
+### 环境要求
+
+- Python 3.11+
+- Node.js 22+
+- 至少一个已按官方方式安装并完成登录鉴权的 Agent CLI
+
+### 安装
 
 ```bash
 git clone https://github.com/lbx154/Argus.git
@@ -88,7 +57,7 @@ python -m pip install --upgrade pip
 pip install -e .
 ```
 
-### 2 · 连接后端
+### 连接后端
 
 ```bash
 argus --setup --non-interactive \
@@ -98,7 +67,7 @@ argus --setup --non-interactive \
 
 `--backend` 可使用 `copilot`、`pi`、`codex`、`claude` 或 `opencode`。
 
-### 3 · 启动
+### 启动
 
 ```bash
 argus
@@ -109,9 +78,7 @@ argus --doctor   # 检查安装与后端
 argus --status   # 查看当前运行状态
 ```
 
----
-
-## 选择你的交互界面
+## 交互界面
 
 ### Terminal Cockpit
 
@@ -119,7 +86,7 @@ argus --status   # 查看当前运行状态
 argus
 ```
 
-终端 Cockpit 是与 Manager 对话、跟踪实时工作、检查状态和恢复项目最快的入口。
+通过终端 Cockpit 与 Manager 对话、跟踪实时工作、检查状态并恢复项目。
 
 ### Web UI
 
@@ -136,7 +103,7 @@ argus --web --no-open    # 只启动，不打开浏览器
 argus --web --port 8800  # 使用其他端口
 ```
 
-#### 通过 SSH 使用远程服务器（推荐）
+#### 通过 SSH 使用远程服务器
 
 在服务器上：
 
@@ -154,8 +121,6 @@ ssh -L 8799:127.0.0.1:8799 user@server
 
 <details>
 <summary><strong>直接通过局域网访问</strong></summary>
-
-<br>
 
 直接访问局域网时，必须使用 Bearer Token 保护服务：
 
@@ -175,26 +140,17 @@ http://SERVER_IP:8799/?token=YOUR_TOKEN
 
 </details>
 
----
-
-## 设计你自己的 Argus
+## 高级使用
 
 Argus 的设计目标不是“只能配置”，而是“可以被你改变”。
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>重塑整个运行时</h3>
-      调整角色 Prompt、工作流边界、审查策略、工具与运行约定，让完整闭环真正符合你的工作方式。
-    </td>
-    <td width="50%" valign="top">
-      <h3>创建自己的 Vertical</h3>
-      为你的领域加入专属阶段、Skill、数据集、工具、证据要求、评测方法与完成标准。
-    </td>
-  </tr>
-</table>
+### 改造整个运行时
 
-如果你是 Agent 的狂热爱好者，我们推荐你在本地运行并持续改造 Argus，把它变成真正服务于自己伟大领域的运行时。用测试固定你重视的行为，连接已有基础设施，让规划和审查遵循你的领域标准，而不是一套通用流程。
+如果你是 Agent 的狂热爱好者，我们推荐你在本地部署 Argus，让完整闭环真正适合自己的工作方式。你可以调整角色 Prompt、工作流边界、审查策略、工具与运行约定，对接已有基础设施，并用测试固定自己重视的行为。
+
+### 创建自己的 Vertical
+
+Vertical 可以为你的领域提供专属阶段、Skill、数据集、工具、证据要求、评测方法与完成标准。规划与审查将遵循该领域真正重要的规范，而不是一套通用流程。
 
 ### 让其他 Agent 成为外层入口
 
@@ -211,7 +167,7 @@ argus --status
 argus --web --no-open
 ```
 
----
+最强大的 Argus 往往是一套被你认真改造成更适合自己伟大领域与工作方式的 Argus。
 
 ## 更新
 
