@@ -1,56 +1,82 @@
 <div align="center">
-
-# ARGUS
-
-### Persistent intelligence for autonomous research and engineering
-
-Turn an open-ended goal into a durable workflow that can plan, build, verify, pause, and resume.
-
-**Official open-source release: on the way · Current version: Preview v0.1.1**
-
-[Website](https://argusbot.cn) · [Demo](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [Technical Report](technical_report/argus-technical-report.pdf) · [简体中文](README.zh-CN.md)
-
-`Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
-
+  <h1>ARGUS</h1>
+  <p><strong>Autonomous research, engineered to persist.</strong></p>
+  <p>A durable runtime for agents that need to plan, build, verify, pause, and continue beyond a single model turn.</p>
+  <p>
+    <a href="https://argusbot.cn"><strong>Website</strong></a>
+    &nbsp;·&nbsp;
+    <a href="https://www.youtube.com/watch?v=i8Qy9HCboQE"><strong>Demo</strong></a>
+    &nbsp;·&nbsp;
+    <a href="technical_report/argus-technical-report.pdf"><strong>Technical Report</strong></a>
+    &nbsp;·&nbsp;
+    <a href="README.zh-CN.md"><strong>简体中文</strong></a>
+  </p>
+  <p>
+    <code>PREVIEW · v0.1.1</code>
+    &nbsp;
+    <code>OFFICIAL OPEN-SOURCE RELEASE · ON THE WAY</code>
+  </p>
 </div>
 
 ---
 
-## ✦ One goal. Four roles. Durable progress.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Persistent by design</h3>
+      Tasks, checkpoints, decisions, Skills, and review evidence survive across sessions and process upgrades.
+    </td>
+    <td width="50%" valign="top">
+      <h3>Reviewed by default</h3>
+      Execution and verification stay separate. Every normal round ends with an independent Reviewer judgment.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Agent-native</h3>
+      Roles work with real files, tools, terminals, experiments, and artifacts instead of a closed workflow editor.
+    </td>
+    <td width="50%" valign="top">
+      <h3>Built to be extended</h3>
+      Adapt the runtime to your own field with custom role guidance, tools, stages, evidence rules, and Verticals.
+    </td>
+  </tr>
+</table>
 
-Argus coordinates four independent, model-driven roles around persistent project state:
+## One runtime. Four authorities.
 
-| Role | Owns |
-|---|---|
-| 🧭 **Manager** | Operator intent, workflow selection, and stage transitions |
-| 🗺️ **Planner** | The next high-value task and its evidence requirements |
-| 🛠️ **Engineer** | Implementation, research, experiments, and artifacts |
-| 🔎 **Reviewer** | Independent checks of correctness, evidence, limits, and completion |
+<table>
+  <tr>
+    <td width="25%" valign="top">
+      <strong>01 · MANAGER</strong><br><sub>CONTROL</sub><br><br>
+      Interprets operator intent, selects the workflow, and owns stage transitions.
+    </td>
+    <td width="25%" valign="top">
+      <strong>02 · PLANNER</strong><br><sub>DIRECTION</sub><br><br>
+      Chooses the next high-value task and defines what evidence it must produce.
+    </td>
+    <td width="25%" valign="top">
+      <strong>03 · ENGINEER</strong><br><sub>EXECUTION</sub><br><br>
+      Implements, researches, runs experiments, and creates inspectable artifacts.
+    </td>
+    <td width="25%" valign="top">
+      <strong>04 · REVIEWER</strong><br><sub>VERIFICATION</sub><br><br>
+      Independently checks correctness, evidence, limitations, and completion.
+    </td>
+  </tr>
+</table>
 
-```text
-operator intent
-      │
-      ▼
-  Manager ──► Planner ──► Engineer ──► Reviewer
-      ▲                         │           │
-      └──── durable state ◄────┴───────────┘
-```
+Argus keeps these authorities connected through durable project state. A project can stop, resume, survive a runtime replacement, and continue from its latest verified position.
 
-Tasks, checkpoints, decisions, reusable Skills, and review evidence survive across sessions. A project can stop, resume, survive process upgrades, and continue from its latest verified state.
-
-**Supported agent CLIs:** GitHub Copilot CLI · OpenAI Codex CLI · Claude Code · OpenCode · Pi
+**Native agent backends** &nbsp; `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode`
 
 ---
 
-## ⚡ Quick start
+## Start in three steps
 
-### Requirements
+### 1 · Install
 
-- Python 3.11+
-- Node.js 22+
-- One supported agent CLI installed and authenticated through its official login flow
-
-### 1. Install
+**Requirements:** Python 3.11+, Node.js 22+, and one authenticated agent CLI.
 
 ```bash
 git clone https://github.com/lbx154/Argus.git
@@ -62,7 +88,7 @@ python -m pip install --upgrade pip
 pip install -e .
 ```
 
-### 2. Connect your backend
+### 2 · Connect a backend
 
 ```bash
 argus --setup --non-interactive \
@@ -70,67 +96,68 @@ argus --setup --non-interactive \
   --accept-house-rules
 ```
 
-Replace `copilot` with `codex`, `claude`, `opencode`, or `pi` as needed.
+Use `copilot`, `pi`, `codex`, `claude`, or `opencode` for `--backend`.
 
-### 3. Launch the terminal cockpit
+### 3 · Launch
 
 ```bash
 argus
 ```
 
-Useful checks:
-
 ```bash
-argus --doctor
-argus --status
+argus --doctor   # verify the installation
+argus --status   # inspect the current runtime
 ```
 
 ---
 
-## ◉ Web UI
+## Choose your surface
 
-### Local desktop
+### Terminal cockpit
 
-Start the API and Web UI, then open it in your default browser:
+```bash
+argus
+```
+
+The terminal cockpit is the fastest way to talk to the Manager, follow live work, inspect state, and resume projects.
+
+### Web UI
+
+Start Argus and open the Web UI in your default browser:
 
 ```bash
 argus --web
 ```
 
-The default address is [http://127.0.0.1:8799](http://127.0.0.1:8799).
+Default address: [http://127.0.0.1:8799](http://127.0.0.1:8799)
 
-To start it without opening a browser:
+```bash
+argus --web --no-open    # start without opening a browser
+argus --web --port 8800  # use another port
+```
+
+#### Remote server over SSH — recommended
+
+On the server:
 
 ```bash
 argus --web --no-open
 ```
 
-Use a different port when needed:
-
-```bash
-argus --web --port 8800
-```
-
-### Remote server over SSH — recommended
-
-On the server, keep Argus bound to localhost:
-
-```bash
-argus --web --no-open
-```
-
-On your computer, forward the port:
+On your computer:
 
 ```bash
 ssh -L 8799:127.0.0.1:8799 user@server
 ```
 
-Then open [http://127.0.0.1:8799](http://127.0.0.1:8799) locally.
+Open [http://127.0.0.1:8799](http://127.0.0.1:8799) locally.
 
 <details>
 <summary><strong>Direct LAN access</strong></summary>
 
-Only bind to the LAN with a bearer token configured:
+<br>
+
+Direct LAN access must be protected by a bearer token:
 
 ```bash
 export ARGUS_SKILL_WEB_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
@@ -138,7 +165,7 @@ printf '%s\n' "$ARGUS_SKILL_WEB_TOKEN"
 argus --web --host 0.0.0.0 --port 8799 --no-open
 ```
 
-Open the following URL from another machine, replacing the host and token:
+Open the URL below from another machine, replacing the host and token:
 
 ```text
 http://SERVER_IP:8799/?token=YOUR_TOKEN
@@ -150,31 +177,33 @@ Never expose `0.0.0.0` without `ARGUS_SKILL_WEB_TOKEN`.
 
 ---
 
-## ◆ Advanced usage guide
+## Design your own Argus
 
-> Argus is not only something you run. It is a runtime you can reshape.
+Argus is designed to be changed, not merely configured.
 
-If you are an agent enthusiast, we recommend deploying Argus locally and making it your own. Adapt the role prompts, workflow, review boundaries, tools, and operating conventions until the full loop fits the way you work.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Shape the runtime</h3>
+      Tune role prompts, workflow boundaries, review policy, tools, and operating conventions until the complete loop matches how you work.
+    </td>
+    <td width="50%" valign="top">
+      <h3>Build a Vertical</h3>
+      Give your field its own stages, Skills, datasets, tools, evidence requirements, evaluation methods, and completion criteria.
+    </td>
+  </tr>
+</table>
 
-### Build your own vertical
+If you are an agent enthusiast, we recommend running Argus locally and evolving it into a runtime for your own ambitious domain. Preserve the behavior you care about with tests, connect the infrastructure you already use, and let planning and review follow the standards of your field rather than a generic process.
 
-A vertical gives Argus domain-specific stages, Skills, evidence expectations, and completion criteria. You can add one for your own field so that planning, execution, and review reflect the standards of the domain you care about—not a generic workflow.
+### Use another agent as the outer layer
 
-Good extensions include:
+GitHub Copilot, Pi, Codex, Claude Code, OpenCode, OpenClaw, or Hermes can act as the environment from which you invoke Argus, inspect its state, operate its local CLI or Web/API surface, and continue improving the deployment.
 
-- a workflow tailored to your research or engineering process;
-- domain Skills, tools, datasets, and evaluation methods;
-- custom stage and review criteria;
-- integrations with your existing infrastructure;
-- tests that preserve your preferred operating contract.
+- **Native Argus backends:** GitHub Copilot CLI, Pi, Codex CLI, Claude Code, OpenCode
+- **External agent operators:** OpenClaw, Hermes, or any agent that can use a shell or HTTP API
 
-### Operate Argus through another agent
-
-Using another agent environment as the outer control layer can also be a powerful workflow. GitHub Copilot, Pi, Codex, Claude Code, OpenCode, OpenClaw, or Hermes can invoke the Argus CLI, inspect its state, operate its local Web/API surface, and help evolve your deployment.
-
-GitHub Copilot CLI, Pi, Codex CLI, Claude Code, and OpenCode can be configured as native Argus backends. OpenClaw and Hermes are best used as external agents that operate a local Argus deployment through its CLI or Web/API interface.
-
-Useful entry points for an outer agent:
+Useful entry points:
 
 ```bash
 argus --doctor
@@ -182,11 +211,9 @@ argus --status
 argus --web --no-open
 ```
 
-The most capable setup is often not a stock installation, but an Argus instance that has been deliberately adapted to your own ambitious field and way of working.
-
 ---
 
-## ↻ Update
+## Update
 
 ```bash
 cd Argus
@@ -195,4 +222,4 @@ git pull --ff-only
 .venv/bin/argus
 ```
 
-The launcher detects stale local WebAPI and daemon processes and replaces them at a controlled task boundary.
+Argus detects stale local WebAPI and daemon processes and replaces them at a controlled task boundary.
