@@ -6,9 +6,7 @@
 
 让长期 Agent 能够规划、执行、验证、暂停，并在一次模型调用之后继续推进。
 
-[官方网站](https://argusbot.cn) · [演示视频](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144)
-
-<a href="README.md"><kbd>English</kbd></a>&nbsp;&nbsp;<a href="README.zh-CN.md"><kbd><strong>简体中文</strong></kbd></a>
+[官方网站](https://argusbot.cn) · [演示视频](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [English](README.md) / **简体中文**
 
 </div>
 

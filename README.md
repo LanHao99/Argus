@@ -6,9 +6,7 @@
 
 Long-running agent work that can plan, execute, verify, pause, and continue beyond a single model turn.
 
-[Website](https://argusbot.cn) · [Demo](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [Technical Report · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144)
-
-<a href="README.md"><kbd><strong>English</strong></kbd></a>&nbsp;&nbsp;<a href="README.zh-CN.md"><kbd>简体中文</kbd></a>
+[Website](https://argusbot.cn) · [Demo](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [Technical Report · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · **English** / [简体中文](README.zh-CN.md)
 
 </div>
 
