@@ -1,9 +1,4 @@
-"""Core dataclasses shared across the loop.
-
-Provenance: most types here are vendored or adapted from
-``ArgusBot/agent_cli/models.py``. Trimmed to what argus-skill actually
-uses (no planner snapshots — argus-skill is reviewer-only for v0.1).
-"""
+"""Core dataclasses shared by runners, reviewers, and mission loops."""
 
 from __future__ import annotations
 
@@ -50,13 +45,7 @@ LoopStatus = Literal[
 
 @dataclass
 class RunnerOptions:
-    """Per-call knobs for an LLM runner backend.
-
-    Vendored shape from ArgusBot's RunnerOptions. Watchdog hooks are
-    optional and only honoured by backends that wrap a real subprocess
-    (e.g. ``AgentCliBackend``); ``MemoryBackend`` and other
-    deterministic backends ignore them.
-    """
+    """Per-call options for an LLM runner backend."""
 
     model: str | None = None
     reasoning_effort: str | None = None
@@ -113,11 +102,7 @@ class RunnerOptions:
 
 @dataclass
 class RunnerResult:
-    """Result returned by a RunnerBackend.run_exec call.
-
-    A slim version of ArgusBot's AgentRunResult — we keep only the parts
-    the loop / reviewer / parsers actually look at.
-    """
+    """Result returned by a ``RunnerBackend.run_exec`` call."""
 
     exit_code: int
     agent_messages: list[str] = field(default_factory=list)

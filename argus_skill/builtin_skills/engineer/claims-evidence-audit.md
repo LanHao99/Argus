@@ -15,15 +15,20 @@ scope claims that may have drifted from the current experiments or literature.
 1. Read the claim in context in `paper/main.tex`.
 2. Open the raw result, analysis script, figure/table source, or primary citation
    that should support it.
-3. Decide whether the wording is supported, too broad, stale, contradicted, or
+3. For high-risk numeric, comparative, causal, or scope claims, use a
+   **fresh-context** check: give an independent reviewer only the claim sentence
+   and the relevant raw source excerpt. Use one reviewer thread per claim and
+   require a `MATCH / MISMATCH / MISSING` verdict for each assertion. Do not give
+   it the engineer's narrative or prior conclusion.
+4. Decide whether the wording is supported, too broad, stale, contradicted, or
    missing a citation.
-4. Repair the authoritative source:
+5. Repair the authoritative source:
    - regenerate a stale number or figure;
    - narrow or remove an unsupported claim;
    - expose an adverse comparison or uncertainty;
    - add a verified primary citation;
    - request the smallest decisive experiment when evidence is genuinely missing.
-5. Recompile and reread the affected paragraph, table, or caption as a paper
+6. Recompile and reread the affected paragraph, table, or caption as a paper
    reviewer would.
 
 Keep `paper/claims_to_evidence.tsv` as the one compact internal map from material

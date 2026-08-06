@@ -1,24 +1,7 @@
-"""SupervisedEngineer: round-loop wrapper around an engineer call.
-
-This is the heart of the argus-skill v0.1 integration:
-
-  * Each round, run the engineer with the current task prompt
-    (initial task + optional skill block + optional reviewer next_action
-    from prior round).
-  * Call an independent Reviewer after every normal Engineer round.
-  * If ``done``, stop. If ``continue``, capture ``next_action`` and loop.
-    If ``blocked``, stop and surface the reason.
-
-Provenance: the round-loop control flow is adapted from
-``ArgusBot/agent_cli/core/engine.py`` (LoopEngine), simplified to the
-single-agent case — argus-skill does not have ArgusBot's planner /
-explore subagent; the skill block plays a similar "what to do" role for
-the engineer in front of you.
-"""
+"""Reviewer-gated Engineer round orchestration."""
 from __future__ import annotations
 
 import logging
-import time  # noqa: F401 - historical test seam for round timing
 from pathlib import Path
 from typing import Callable
 
@@ -52,11 +35,8 @@ from .round_reviewer import RoundReviewerMixin
 from .round_self_review import RoundSelfReviewMixin
 from .round_settlement import RoundSettlementMixin
 
-# The following ``round_signals`` re-exports are not called internally by
-# this module anymore (their logic now lives in the phase mixins above), but
-# they are kept importable here — as plain module attributes — for
-# historical/test module-attribute access (e.g. ``runner_module._plan_signal_event``,
-# direct ``from argus_skill.engineer.runner import _apply_round_secret_guard``).
+# These round-signal helpers remain module attributes because callers and tests
+# patch them through ``argus_skill.engineer.runner``.
 from .round_signals import (
     _apply_round_secret_guard,  # noqa: F401
     _pause_decision_clock,  # noqa: F401

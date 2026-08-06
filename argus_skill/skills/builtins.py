@@ -8,6 +8,7 @@ local skills.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import threading
 import uuid
@@ -18,6 +19,17 @@ from typing import Iterable
 
 _BUILTIN_PACKAGE = "argus_skill.builtin_skills"
 DEFAULT_PROJECT_BUILTIN_SKILLS_DIR = "argus_builtin_skills"
+_RETIRED_BUILTIN_SEED_HASHES = {
+    "engineer/experiment-audit.md": (
+        "d7fa41bfefaa0aaa8156f5febc8a4c1dc98874f3e7e24e6306f075266c49074e"
+    ),
+    "engineer/paper-claim-audit.md": (
+        "65311eb7bc317e82195f7dcc56abf7fb8caf357f144bdd16fcf7504e48904ad1"
+    ),
+    "engineer/singularity-amlt-gpu-ops.md": (
+        "18f7020894021a6a15a68e54022c3a7758535ce7e501cea4dc408a33f79ef6dc"
+    ),
+}
 _VERTICAL_SKILL_INHERITANCE = {
     "digital_circuit_benchmark": ("digital_circuit",),
     "chip_design": ("digital_circuit",),
@@ -150,9 +162,47 @@ def _is_bundled_script(prefix: str, filename: str) -> bool:
 
 
 def retire_orphaned_builtin_seeds(skills_dir: Path) -> list[str]:
-    """Leave semantic retirement to an Agent; never infer it from file data."""
-    _ = skills_dir
-    return []
+    """Remove retired seeds from matching, archiving any operator-edited copy."""
+    skills_dir = Path(skills_dir)
+    removed: list[str] = []
+    for relative_name, expected_digest in sorted(
+        _RETIRED_BUILTIN_SEED_HASHES.items()
+    ):
+        path = skills_dir / relative_name
+        try:
+            body = path.read_bytes()
+        except (FileNotFoundError, IsADirectoryError, OSError):
+            continue
+        if hashlib.sha256(body).hexdigest() == expected_digest:
+            try:
+                path.unlink()
+            except OSError:
+                continue
+        else:
+            archive = (
+                skills_dir
+                / "_retired_builtin_skills"
+                / f"{relative_name}.retired"
+            )
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            if archive.exists():
+                try:
+                    if archive.read_bytes() == body:
+                        path.unlink()
+                    else:
+                        digest = hashlib.sha256(body).hexdigest()[:12]
+                        path.replace(
+                            archive.with_name(f"{archive.name}.{digest}")
+                        )
+                except OSError:
+                    continue
+            else:
+                try:
+                    path.replace(archive)
+                except OSError:
+                    continue
+        removed.append(relative_name)
+    return removed
 
 
 def seed_builtin_skills(skills_dir: Path, *, overwrite: bool = False) -> dict[str, bool]:
@@ -164,6 +214,7 @@ def seed_builtin_skills(skills_dir: Path, *, overwrite: bool = False) -> dict[st
     """
     skills_dir = Path(skills_dir)
     skills_dir.mkdir(parents=True, exist_ok=True)
+    retire_orphaned_builtin_seeds(skills_dir)
     created: dict[str, bool] = {}
     for filename, text in iter_builtin_skill_texts():
         if filename.endswith(".md"):
@@ -219,6 +270,7 @@ def seed_builtin_skills_for_context(
     """
     skills_dir = Path(skills_dir)
     skills_dir.mkdir(parents=True, exist_ok=True)
+    retire_orphaned_builtin_seeds(skills_dir)
     created: dict[str, bool] = {}
 
     # Workflow/domain Skills (real bodies) always win over a builtin

@@ -326,9 +326,6 @@ def generate_academic_language_review(
                 venue=venue,
             )
         except (ImageToolError, AcademicLanguageReviewError) as exc:
-            # TODO(agent-cli-review-fallback): when no vault HTTP route exists but
-            # the reviewer role runs on an agent-CLI backend (copilot/claude),
-            # dispatch this review through that backend instead of hard-blocking.
             issues.append(
                 _issue(
                     "model_review_unavailable",
@@ -1098,25 +1095,14 @@ def describe_reviewer_route_unavailable(
     """Build an accurate operator message when the model-backed ``reviewer``
     route is unavailable.
 
-    The reviewer *role* may run on an agent-CLI backend (``copilot`` /
-    ``claude`` / ``codex``) that authenticates through its own CLI and exposes
-    no OpenAI-style HTTP route. On such deployments the raw ``_require_route``
-    guidance ("configure api_key, base_url, and model") is impossible to satisfy
-    for copilot/claude, so we surface the real options instead of a misleading
-    one. The gate stays blocking either way — this only fixes the message.
+    The reviewer *role* may run on an agent-CLI backend that authenticates
+    through its own CLI and exposes no OpenAI-style HTTP route. When both the
+    model route and the runner fallback are unavailable, surface actionable
+    configuration guidance instead of raw route internals.
 
     The note is only appended when the ``reviewer`` vault route is genuinely
     absent (so a real HTTP failure on a configured route is not mislabelled).
 
-    TODO(agent-cli-review-fallback): the durable fix is to let the model-backed
-    reviews dispatch their prompt through the reviewer's agent-CLI backend
-    (``AgentCliRunner.run_exec``) when no vault HTTP route is configured, so a
-    copilot/claude-only deployment can complete the review stage without a
-    separate keyed route. That is a larger, cross-file change: these reviews run
-    as standalone ``python -m argus_skill.verticals.research.*`` subprocesses,
-    so they would need to spawn the reviewer role backend and parse its JSON
-    output (timeouts, streaming, and JSON-extraction included). Tracked as a
-    follow-up rather than folded into this message-only fix.
     """
     base = _redact(str(exc))
     try:

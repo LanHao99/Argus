@@ -130,16 +130,16 @@ def test_gpu_load_help_exits_clean() -> None:
 
 def test_save_and_load_author_roundtrip(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
-    path = _wizard._save_author("lbx154", "lbxhaixing154@sjtu.edu.cn")
+    path = _wizard._save_author("Example User", "author@example.invalid")
     assert path.exists()
     assert (path.stat().st_mode & 0o777) == 0o600
     loaded = _wizard._load_existing_author()
-    assert loaded == {"name": "lbx154", "email": "lbxhaixing154@sjtu.edu.cn"}
+    assert loaded == {"name": "Example User", "email": "author@example.invalid"}
 
 
 def test_configure_author_prompts_and_sets_git(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
-    answers = iter(["lbx154", "lbxhaixing154@sjtu.edu.cn"])
+    answers = iter(["Example User", "author@example.invalid"])
     monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
     applied: dict[str, str] = {}
     monkeypatch.setattr(_wizard, "_git_global_identity", lambda: ("", ""))
@@ -148,8 +148,8 @@ def test_configure_author_prompts_and_sets_git(tmp_path: Path, monkeypatch) -> N
         lambda name, email: applied.update(name=name, email=email) or True,
     )
     result = _wizard._configure_author(None, set_git_global=True)
-    assert result == {"name": "lbx154", "email": "lbxhaixing154@sjtu.edu.cn"}
-    assert applied == {"name": "lbx154", "email": "lbxhaixing154@sjtu.edu.cn"}
+    assert result == {"name": "Example User", "email": "author@example.invalid"}
+    assert applied == {"name": "Example User", "email": "author@example.invalid"}
     assert _wizard._load_existing_author() == result
 
 
@@ -168,7 +168,7 @@ def test_configure_author_defaults_from_existing(tmp_path: Path, monkeypatch) ->
     monkeypatch.setattr("builtins.input", lambda _prompt="": "")
     monkeypatch.setattr(_wizard, "_git_global_identity", lambda: ("", ""))
     monkeypatch.setattr(_wizard, "_apply_git_identity", lambda *a: True)
-    existing = {"name": "lbx154", "email": "lbxhaixing154@sjtu.edu.cn"}
+    existing = {"name": "Example User", "email": "author@example.invalid"}
     result = _wizard._configure_author(existing)
     assert result == existing
 
@@ -191,8 +191,7 @@ def test_setup_defaults_to_only_installed_copilot(
     monkeypatch.delenv("ARGUS_SKILL_RUNNER_BACKEND", raising=False)
     monkeypatch.delenv("ARGUS_SKILL_LIFE_BACKEND", raising=False)
     monkeypatch.setattr(
-        _wizard.shutil,
-        "which",
+        "argus_skill.agent_cli.runner_backend.resolve_runner_bin",
         lambda name: "/usr/local/bin/copilot" if name == "copilot" else None,
     )
     monkeypatch.setattr("builtins.input", lambda _prompt="": "")
@@ -208,8 +207,7 @@ def test_setup_defaults_to_only_installed_pi(tmp_path: Path, monkeypatch) -> Non
     monkeypatch.delenv("ARGUS_SKILL_RUNNER_BACKEND", raising=False)
     monkeypatch.delenv("ARGUS_SKILL_LIFE_BACKEND", raising=False)
     monkeypatch.setattr(
-        _wizard.shutil,
-        "which",
+        "argus_skill.agent_cli.runner_backend.resolve_runner_bin",
         lambda name: "/usr/local/bin/pi" if name == "pi" else None,
     )
     monkeypatch.setattr("builtins.input", lambda _prompt="": "")
@@ -227,8 +225,7 @@ def test_setup_defaults_to_only_installed_opencode(
     monkeypatch.delenv("ARGUS_SKILL_RUNNER_BACKEND", raising=False)
     monkeypatch.delenv("ARGUS_SKILL_LIFE_BACKEND", raising=False)
     monkeypatch.setattr(
-        _wizard.shutil,
-        "which",
+        "argus_skill.agent_cli.runner_backend.resolve_runner_bin",
         lambda name: "/usr/local/bin/opencode" if name == "opencode" else None,
     )
     monkeypatch.setattr("builtins.input", lambda _prompt="": "")
@@ -245,7 +242,10 @@ def test_setup_rejects_selected_backend_missing_from_path(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("ARGUS_SKILL_RUNNER_BACKEND", raising=False)
     monkeypatch.delenv("ARGUS_SKILL_LIFE_BACKEND", raising=False)
-    monkeypatch.setattr(_wizard.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(
+        "argus_skill.agent_cli.runner_backend.resolve_runner_bin",
+        lambda _name: None,
+    )
     monkeypatch.setattr("builtins.input", lambda _prompt="": "copilot")
     from argus_skill.core.knob_store import read_persisted_knobs
 
@@ -263,8 +263,7 @@ def test_setup_does_not_replace_persisted_backend_before_readiness(
 
     assert write_persisted_knob("ARGUS_SKILL_RUNNER_BACKEND", "codex")
     monkeypatch.setattr(
-        _wizard.shutil,
-        "which",
+        "argus_skill.agent_cli.runner_backend.resolve_runner_bin",
         lambda name: "/usr/local/bin/copilot" if name == "copilot" else None,
     )
     monkeypatch.setattr("builtins.input", lambda _prompt="": "")

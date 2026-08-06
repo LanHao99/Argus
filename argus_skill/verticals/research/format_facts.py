@@ -33,7 +33,9 @@ CLI:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
+import io
 import json
 import re
 import sys
@@ -304,7 +306,10 @@ def _layout_observations(pdf_path: Path) -> _LayoutObservations | None:
                 blank_pages += 1
             coverages.append(min(1.0, occupied_area / page_area))
             try:
-                detected_tables += len(page.find_tables().tables)
+                # PyMuPDF 1.27 prints an optional-package recommendation to
+                # stdout here, which would corrupt this module's JSON CLI.
+                with contextlib.redirect_stdout(io.StringIO()):
+                    detected_tables += len(page.find_tables().tables)
             except Exception:  # noqa: BLE001
                 warnings.append(
                     f"table detection unavailable on page {page.number + 1}"

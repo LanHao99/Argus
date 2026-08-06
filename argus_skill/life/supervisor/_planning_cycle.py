@@ -340,7 +340,7 @@ class PlanningCycleMixin(
             # unreachable whenever the Planner omitted the contract fields.
             #
             # Measured on 2026-07-26
-            # (/tmp/argus-night/home/projects/b5626a40e50a/events.jsonl): six
+            # (a project event log): several
             # consecutive waits, every one with `waiting_contract: null`, so
             # zero Manager reviews. The Planner even said why it was stuck —
             # "only the Manager may advance current_stage from scope to

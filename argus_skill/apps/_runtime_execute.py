@@ -60,10 +60,6 @@ class SkillLoopExecuteMixin:
     """Mission-execution half of ``_SkillLoopRunner``."""
 
     @staticmethod
-    def _suppress_playground_settlement(state: object) -> None:
-        setattr(state, "allow_settlement_side_effects", False)
-
-    @staticmethod
     def _is_link_or_reparse_point(path: Path) -> bool:
         try:
             if path.is_symlink():
@@ -884,7 +880,6 @@ class SkillLoopExecuteMixin:
                 if not skills_ok:
                     raise RuntimeError(skills_reason)
                 if skills_changed:
-                    setattr(state, "allow_settlement_side_effects", False)
                     ex_state.protected_playground_source_violation = True
                     log.error("protected Skill isolation: %s", skills_reason)
                     return "blocked", skills_reason, skills_reason
@@ -896,7 +891,6 @@ class SkillLoopExecuteMixin:
                 )
                 if not playground_claimed:
                     return status, final_message, reason
-                self._suppress_playground_settlement(state)
                 ex_state.playground_workflow_guarded = True
                 ex_state.trusted_playground_workflow = bool(
                     skill is not None
@@ -918,7 +912,6 @@ class SkillLoopExecuteMixin:
                             "Playground workflow trust validation failed; "
                             "formal stage transition was suppressed"
                         )
-                    setattr(state, "allow_settlement_side_effects", False)
                     log.error("Chemistry Playground isolation: %s", isolation_reason)
                     return "blocked", isolation_reason, isolation_reason
                 return status, final_message, reason

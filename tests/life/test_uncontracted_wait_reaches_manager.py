@@ -1,8 +1,7 @@
 """A wait with no contract is where the Manager review matters most.
 
-Measured on 2026-07-26
-(/tmp/argus-night/home/projects/b5626a40e50a/events.jsonl): a kernel_engineering
-campaign emitted six consecutive `life.planner.waiting` verdicts, every one with
+Measured on 2026-07-26 in a captured project event log: a kernel_engineering
+campaign emitted several consecutive `life.planner.waiting` verdicts, every one with
 `waiting_contract: null`, and produced zero Manager stage reviews. Thirteen
 provider calls, no progress, and the Planner had already said exactly what was
 wrong:

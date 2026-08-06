@@ -4,9 +4,8 @@ Lock in two invariants:
 
 1. Every matchable built-in skill markdown (excluding packaged ``references/``
    corpora) has YAML frontmatter with at minimum ``name`` and ``description``.
-2. The three skills copied from ARIS (``citation-audit``,
-   ``paper-claim-audit``, ``figure-spec``) are present and well-formed,
-   and the figure-spec renderer script is importable + runs.
+2. The retained ARIS-derived skills are present and well-formed, claim checking
+   has one canonical implementation, and the figure renderer is importable.
 
 This prevents accidental drift of the skill bundle and catches the
 "someone added a skill without frontmatter so the matcher silently
@@ -61,7 +60,7 @@ def test_every_builtin_skill_has_frontmatter() -> None:
     "skill_path,expected_name",
     [
         ("engineer/citation-audit.md", "Citation Audit"),
-        ("engineer/paper-claim-audit.md", "Paper Claim Audit"),
+        ("engineer/claims-evidence-audit.md", "Claim Check"),
         ("engineer/figure-spec.md", "Figure Spec (deterministic SVG)"),
     ],
 )
@@ -71,6 +70,17 @@ def test_aris_adapted_skills_are_present(skill_path: str, expected_name: str) ->
     fm = _parse_frontmatter(md.read_text(encoding="utf-8"))
     assert fm is not None
     assert fm["name"] == expected_name
+
+
+def test_claim_check_requires_fresh_source_level_verification() -> None:
+    text = (
+        BUILTIN_ROOT / "engineer" / "claims-evidence-audit.md"
+    ).read_text(encoding="utf-8")
+
+    assert "fresh-context" in text
+    assert "MATCH / MISMATCH / MISSING" in text
+    assert "one reviewer thread per claim" in text
+    assert "PAPER_CLAIM_AUDIT" not in text
 
 
 def test_figure_renderer_script_is_present_and_importable() -> None:

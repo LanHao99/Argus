@@ -376,11 +376,11 @@ Research target and metric:
   seed has not won.
 
 Fixed scaffold and harness (do not modify):
-- The contest runs on a GPU node under
-  /scratch/recursive/nanochat_autoresearch. A shared harness `lib.py` provides
-  the tokenizer, the dataloader, and `evaluate_bpb`, which scores held-out
-  text on shard_06542 with TIME_BUDGET=300s. Every candidate under
-  solutions/<name>.py imports this shared library.
+- The operator-provided benchmark workspace contains a shared `lib.py` with the
+  tokenizer, dataloader, `evaluate_bpb`, held-out shard, and time budget. Read
+  the workspace path and launch command from the current mission manifest or
+  environment; never assume a host, mount point, SSH alias, GPU SKU, or Python
+  interpreter from this profile.
 - The agent's deliverable is exactly ONE self-contained training script,
   solution.py, that imports the shared lib.py. The agent may change only the
   training recipe inside solution.py: model architecture, optimizer, schedule,
@@ -393,7 +393,9 @@ Fixed scaffold and harness (do not modify):
   shared code.
 
 Budget and runtime contract:
-- 300 seconds of wall-clock per run on ONE A100. Every recipe must fit useful
+- The benchmark protocol is 300 seconds of wall-clock per run on one A100.
+  This profile defines the protocol; it does not assert that an A100 is
+  currently reachable. Every recipe must fit useful
   tokenizer setup, model construction, and as much effective training as
   possible inside that window, then stop cleanly and evaluate. Spending the
   budget on a model too large to converge, or leaving the budget unused, are both
@@ -403,27 +405,26 @@ Budget and runtime contract:
   parse it. Evaluation is the MEAN of these val bpb values across the N seeds.
 
 Hardware and execution rules:
-- GPU access is via `ssh ds "<cmd>"`; the node is an 8xA100-40GB host named
-  dashing-stork. The Python interpreter on the node is
-  /opt/conda/envs/ptca/bin/python and the data is already wired at /data. Do not
-  re-download weights or datasets; reuse the on-node data path.
-- A100 is Ampere, not Hopper, so flash-attn-3 cannot run there. Either write
-  solution.py against torch SDPA attention directly, or launch it through
-  /scratch/run_with_shim.py <solution.py>, which transparently swaps an
-  FA3 call for torch SDPA. Assume FA3 is unavailable and design attention
-  accordingly.
+- Probe the actual device and software stack before choosing kernels. A profile
+  name or historical result is not evidence that a particular GPU is available.
+- Proceed only when the active benchmark runner verifies one A100 and the
+  frozen 300-second protocol. A different GPU is a different benchmark, not a
+  substitute result.
+- Use only the operator-provided remote command, interpreter, data mount, and
+  compatibility shim. If the detected GPU cannot run a candidate attention
+  implementation, use a supported path such as torch SDPA or record an
+  infrastructure blocker; do not invent benchmark results.
 
 Baseline to beat:
-- The baseline is Recursive's released solutions, re-measured ON OUR harness and
-  hardware rather than trusting their published figures. Their best released
-  recipe is optimized_from_karpathy.py, published at 0.9109 val bpb on a B200;
-  we re-measure it on our A100 harness and the number that matters is that
-  re-measured mean val bpb.
+- The baseline is the released reference solution, re-measured on the active
+  frozen A100 harness rather than trusting published figures. Its best released
+  recipe is `optimized_from_karpathy.py`; the number that matters is its
+  re-measured mean val bpb under the same active protocol as the candidate.
 - Success means the argus-skill solution.py achieves a lower mean val bpb than
   the re-measured optimized_from_karpathy.py baseline under the identical
   protocol (same N seeds, same 300s budget, same held-out validation). Beating
-  the published B200 number while losing to the re-measured A100 baseline does
-  not count.
+  a published number from different hardware while losing to the re-measured
+  local baseline does not count.
 
 Anti-cheat and reward rules:
 - The ONLY reward that counts is the val bpb produced by the VERIFIER re-running

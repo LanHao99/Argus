@@ -1,10 +1,4 @@
-"""Pydantic request bodies shared across the webapi route domains.
-
-Extracted from ``create_app`` (previously locally-defined classes named
-``_TaskIn``, ``_NudgeIn``, ...). Field names, defaults, and validation are
-byte-for-byte identical; only the module location and the leading underscore
-(no longer needed once these are shared across domain modules) changed.
-"""
+"""Pydantic request bodies shared across web API route modules."""
 
 from __future__ import annotations
 

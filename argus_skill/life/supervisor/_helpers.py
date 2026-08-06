@@ -108,39 +108,55 @@ def _normalize_planner_text(text: str) -> str:
 
 
 def _sanitize_planner_task_text(text: str) -> str:
-    """Remove stale host-specific entry paths from planner-generated missions."""
+    """Replace legacy deployment paths in planner-generated missions."""
     value = str(text)
-    command_replacements = {
+    legacy_sources: set[str] = set()
+
+    def _replace_path_token(source_text: str, path: str, replacement: str) -> str:
+        source_text = source_text.replace(f"`{path}`", replacement)
+        return re.sub(
+            rf"(?<![\w./-]){re.escape(path)}(?![\w./-])",
+            replacement,
+            source_text,
+        )
+
+    def _replace_entry_command(match: re.Match[str]) -> str:
+        source = str(match.group("source") or "").rstrip("/")
+        if source:
+            legacy_sources.add(source)
+        return '"${ARGUS_SKILL_PYTHON:-python}" -m argus_skill'
+
+    value = re.sub(
         (
-            "PYTHONPATH=/home/argustest/argus-skill "
-            "/home/argustest/miniconda3/bin/python -m argus_skill"
-        ): '"${ARGUS_SKILL_PYTHON:-python}" -m argus_skill',
+            r"(?:PYTHONPATH=(?P<source>/[^\s`]+)\s+)?"
+            r"(?:/[^\s`]+/)?python(?:\d+(?:\.\d+)*)?"
+            r"\s+-m\s+argus_skill"
+        ),
+        _replace_entry_command,
+        value,
+    )
+    value = re.sub(
         (
-            "PYTHONPATH=/home/argustest/argus-skill "
-            "python -m argus_skill"
-        ): '"${ARGUS_SKILL_PYTHON:-python}" -m argus_skill',
-        (
-            "/home/argustest/miniconda3/bin/python -m argus_skill"
-        ): '"${ARGUS_SKILL_PYTHON:-python}" -m argus_skill',
-    }
-    for old, new in command_replacements.items():
-        value = value.replace(old, new)
-    path_replacements = {
-        "`/home/argustest/research.md`": "the operator-provided research playbook if present",
-        "/home/argustest/research.md": "the operator-provided research playbook if present",
-        "`/home/argustest/argus-skill`": "the active Argus source/package",
-        "/home/argustest/argus-skill": "the active Argus source/package",
-        (
-            "`/root/Auto-claude-code-research-in-sleep/skills/"
-            "paper-illustration-image2/SKILL.md`"
-        ): "`argus_builtin_skills/engineer/paper-illustration-image2.md`",
-        (
-            "/root/Auto-claude-code-research-in-sleep/skills/"
-            "paper-illustration-image2/SKILL.md"
-        ): "argus_builtin_skills/engineer/paper-illustration-image2.md",
-    }
-    for old, new in path_replacements.items():
-        value = value.replace(old, new)
+            r"`?/(?:home|root)/[^`\s]+/skills/"
+            r"paper-illustration-image2/SKILL\.md`?"
+        ),
+        "`argus_builtin_skills/engineer/paper-illustration-image2.md`",
+        value,
+    )
+    for source in sorted(legacy_sources, key=len, reverse=True):
+        if Path(source).name not in {"Argus", "argus-skill"}:
+            continue
+        research_playbook = str(Path(source).parent / "research.md")
+        value = _replace_path_token(
+            value,
+            research_playbook,
+            "the operator-provided research playbook if present",
+        )
+        value = _replace_path_token(
+            value,
+            source,
+            "the active Argus source/package",
+        )
     return value
 
 

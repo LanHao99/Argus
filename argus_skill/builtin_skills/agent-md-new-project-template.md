@@ -71,7 +71,7 @@ selected venue profile and official author kit.
 | Exemplar PDFs, page rhythm, structure blueprint, conformance | `argus_builtin_skills/paper-exemplar-pdf-learning.md` | exemplar PDFs/text, `STYLE_PROFILE.md`, `PAPER_STRUCTURE_BLUEPRINT.md`, structure conformance artifacts |
 | First LaTeX draft, citations, bibliography, narrative | selected venue drafting skill + official author kit | `paper/main.tex`, page/word budget, draft report, BibTeX connected to claims |
 | Format, page/word budget, references, appendix/checklist flow | selected venue format preflight | classify whether to fix layout/prose or route back to evidence |
-| Weak claims, unsupported numbers, evidence gaps, stale artifacts | `argus_builtin_skills/claims-evidence-audit.md` | source-level claim/result corrections and the smallest missing experiment |
+| Weak claims, unsupported numbers, evidence gaps, stale artifacts | `argus_builtin_skills/engineer/claims-evidence-audit.md` | source-level claim/result corrections and the smallest missing experiment |
 | Academic tone and model-backed prose critique after evidence is stable | selected venue academic-language review | fresh `ACADEMIC_LANGUAGE_REVIEW.json` and concrete directives |
 | Iterative paper repair after review feedback | `argus_builtin_skills/paper-review-revision-loop.md` | source-level revisions plus review reruns, without hand-editing stale generated outputs |
 | Final paper review | `argus_builtin_skills/research-submission-assurance-gate.md` | independent reading of the current manuscript, PDF, and claim-critical sources |

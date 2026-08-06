@@ -155,9 +155,6 @@ def generate_paper_infrastructure_review(
                 venue=venue,
             )
         except (ImageToolError, PaperInfrastructureReviewError) as exc:
-            # TODO(agent-cli-review-fallback): when no vault HTTP route exists but
-            # the reviewer role runs on an agent-CLI backend (copilot/claude),
-            # dispatch this review through that backend instead of hard-blocking.
             issue = _issue(
                 "model_review_unavailable",
                 "blocking",

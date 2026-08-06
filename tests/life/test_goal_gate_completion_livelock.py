@@ -1,8 +1,6 @@
 """Twenty of twenty-three verticals could never complete. Regression guard.
 
-Observed live on 2026-07-26 in
-``/tmp/argus-night/home/projects/ce3bdc5a5291/events.jsonl`` (and earlier in
-``/tmp/argus-ux-home-current/projects/s-5d812960/events.jsonl``): the Reviewer
+Observed live on 2026-07-26 in multiple captured project event logs: the Reviewer
 returned ``done`` and certified the delivery stage, the Manager's stage decision
 agreed, the mission completed — and the Planner immediately re-issued the
 identical task "Complete and certify the current Goal Gate". Twenty-one provider
@@ -152,7 +150,7 @@ def test_an_unreadable_vertical_keeps_the_strict_rule() -> None:
 def test_a_completion_that_overrode_a_hold_does_not_read_as_a_hold() -> None:
     """Persisted history must not contradict itself.
 
-    Observed verbatim in /tmp/argus-night/wd-03/research/PIPELINE_STATE.json:
+    Observed verbatim in a captured `research/PIPELINE_STATE.json`:
 
         {"direction": "complete", ..., "reason": "manager held (default)"}
 

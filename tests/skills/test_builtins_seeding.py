@@ -11,6 +11,8 @@ These tests pin that contract on the quant vertical (the first to adopt it).
 """
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from argus_skill.skills.builtins import (
@@ -19,6 +21,7 @@ from argus_skill.skills.builtins import (
     iter_vertical_skill_texts,
     remove_unmodified_inactive_vertical_skill_seeds,
     remove_unmodified_vertical_skill_seeds,
+    retire_orphaned_builtin_seeds,
     seed_builtin_skills_for_vertical,
     seed_vertical_skills,
     vertical_skill_source_path,
@@ -38,6 +41,12 @@ MATH_SKILLS = {
     "reviewer/math-research-review.md",
     "scientist/math-research-distillation.md",
     "scientist/math-research-adaptation.md",
+}
+
+RETIRED_BUILTIN_SKILLS = {
+    "engineer/experiment-audit.md",
+    "engineer/paper-claim-audit.md",
+    "engineer/singularity-amlt-gpu-ops.md",
 }
 
 
@@ -96,6 +105,71 @@ def test_vertical_owned_skills_are_not_also_flat_builtins() -> None:
         for vertical in VERTICALS
     }
     assert {v: names for v, names in leaked.items() if names} == {}
+
+
+def test_retired_builtin_skills_are_not_packaged() -> None:
+    packaged = {name for name, _text in iter_builtin_skill_texts()}
+
+    assert packaged.isdisjoint(RETIRED_BUILTIN_SKILLS)
+
+
+def test_retire_orphaned_builtin_seeds_archives_edited_copies(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import argus_skill.skills.builtins as builtins
+
+    unchanged_body = b"retired seed\n"
+    edited_body = unchanged_body + b"operator edit\n"
+    retired = {
+        "engineer/unchanged.md": hashlib.sha256(unchanged_body).hexdigest(),
+        "engineer/edited.md": hashlib.sha256(unchanged_body).hexdigest(),
+    }
+    monkeypatch.setattr(
+        builtins,
+        "_RETIRED_BUILTIN_SEED_HASHES",
+        retired,
+        raising=False,
+    )
+    unchanged = tmp_path / "engineer" / "unchanged.md"
+    edited = tmp_path / "engineer" / "edited.md"
+    edited.parent.mkdir(parents=True)
+    unchanged.write_bytes(unchanged_body)
+    edited.write_bytes(edited_body)
+
+    removed = retire_orphaned_builtin_seeds(tmp_path)
+
+    assert removed == ["engineer/edited.md", "engineer/unchanged.md"]
+    assert not unchanged.exists()
+    assert not edited.exists()
+    archived = (
+        tmp_path
+        / "_retired_builtin_skills"
+        / "engineer"
+        / "edited.md.retired"
+    )
+    assert archived.read_bytes() == edited_body
+
+
+def test_seeding_retires_existing_obsolete_skill(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import argus_skill.skills.builtins as builtins
+
+    body = b"retired seed\n"
+    monkeypatch.setattr(
+        builtins,
+        "_RETIRED_BUILTIN_SEED_HASHES",
+        {"engineer/obsolete.md": hashlib.sha256(body).hexdigest()},
+    )
+    obsolete = tmp_path / "engineer" / "obsolete.md"
+    obsolete.parent.mkdir(parents=True)
+    obsolete.write_bytes(body)
+
+    builtins.seed_builtin_skills(tmp_path)
+
+    assert not obsolete.exists()
 
 
 def test_quant_skills_are_owned_by_the_quant_vertical(tmp_path) -> None:
