@@ -1,14 +1,19 @@
 <div align="center">
 
-<img src="docs/assets/argus-mascot.svg" width="110" alt="Argus 多眼哨兵 Agent 吉祥物">
+<img src="docs/assets/argus-mascot.svg" width="140" alt="Argus 多眼哨兵 Agent 吉祥物">
 
 # Argus
 
-**面向科研与工程的持久、可审查自主运行时。**
+### 面向科研与工程的持久、可审查自主运行时
 
 让长期 Agent 能够规划、执行、验证、暂停，并在一次模型调用之后继续推进。
 
 **当前为 Preview v0.1.1 · 正式开源版正在路上。**
+
+[![GitHub Stars](https://img.shields.io/github/stars/lbx154/Argus?style=flat-square)](https://github.com/lbx154/Argus/stargazers)
+[![License](https://img.shields.io/github/license/lbx154/Argus?style=flat-square)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![arXiv](https://img.shields.io/badge/arXiv-2608.05144-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2608.05144)
 
 [官方网站](https://argusbot.cn) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [微信群](#微信群) · [English](README.md) / **简体中文**
 
@@ -16,20 +21,20 @@
 
 </div>
 
-<p align="center">
-  <a href="https://argusbot.cn">
-    <img src="docs/assets/argus-homepage.png" width="100%" alt="Argus 官网首页顶部实际画面">
-  </a>
-</p>
+---
 
-## 为什么选择 Argus
+## Argus 是什么？
 
 大多数 Agent 面向一次对话或一次编码回合设计。Argus 面向真正需要持续推进的工作：保存状态、分离执行与判断，并从已经验证的进展继续，而不是每次重新开始。
 
-- **持久，而不是一次性** — 任务、检查点、决策、Skill 与证据会跨 session 和进程升级保存。
-- **默认独立审查** — 执行与验证相互分离；每个正常回合都以独立 Reviewer 的判断结束。
-- **Agent 原生工作方式** — 角色直接使用真实文件、终端、工具、实验和产物。
-- **可扩展到不同领域** — 自定义 Vertical 可以定义自己的阶段、Skill、工具、证据要求与完成标准。
+| 核心能力 | 含义 |
+|---|---|
+| **持久状态** | 任务、检查点、决策、Skill 与证据可跨 Session 和运行时升级保存。 |
+| **独立审查** | 执行与验证相互分离；正常回合由 Reviewer 给出独立判断。 |
+| **四角色运行时** | Manager、Planner、Engineer 和 Reviewer 分别拥有明确的权威与职责。 |
+| **真实工具调用** | Agent 直接使用文件、终端、实验、API 和可检查的产物。 |
+| **领域扩展** | Vertical 可以定义专属阶段、工具、证据要求与完成标准。 |
+| **多种 Backend** | 支持 GitHub Copilot CLI、Pi、Codex CLI、Claude Code 与 OpenCode。 |
 
 ## 运行模型
 
@@ -44,7 +49,7 @@
 
 **原生 Backend：** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode`
 
-## 快速开始
+## 快速安装
 
 ### 环境要求
 

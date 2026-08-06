@@ -1,14 +1,19 @@
 <div align="center">
 
-<img src="docs/assets/argus-mascot.svg" width="110" alt="Argus multi-eye agent mascot">
+<img src="docs/assets/argus-mascot.svg" width="140" alt="Argus multi-eye agent mascot">
 
 # Argus
 
-**Persistent, reviewed autonomy for research and engineering.**
+### Persistent, reviewed autonomy for research and engineering
 
 Long-running agent work that can plan, execute, verify, pause, and continue beyond a single model turn.
 
 **Preview v0.1.1 · Official open-source release on the way.**
+
+[![GitHub Stars](https://img.shields.io/github/stars/lbx154/Argus?style=flat-square)](https://github.com/lbx154/Argus/stargazers)
+[![License](https://img.shields.io/github/license/lbx154/Argus?style=flat-square)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![arXiv](https://img.shields.io/badge/arXiv-2608.05144-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2608.05144)
 
 [Website](https://argusbot.cn) · [Technical Report · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [WeChat Community](#wechat-community) · **English** / [简体中文](README.zh-CN.md)
 
@@ -16,20 +21,20 @@ Long-running agent work that can plan, execute, verify, pause, and continue beyo
 
 </div>
 
-<p align="center">
-  <a href="https://argusbot.cn">
-    <img src="docs/assets/argus-homepage.png" width="100%" alt="The top of the Argus website homepage">
-  </a>
-</p>
+---
 
-## Why Argus
+## What is Argus?
 
 Most agents are optimized for one conversation or one coding turn. Argus is built for work that lasts: it keeps state, separates execution from judgment, and resumes from verified progress instead of starting over.
 
-- **Persistent by design** — tasks, checkpoints, decisions, Skills, and evidence survive sessions and process upgrades.
-- **Reviewed by default** — execution and verification stay separate; every normal round ends with an independent Reviewer judgment.
-- **Agent-native** — roles work through real files, terminals, tools, experiments, and artifacts.
-- **Domain-extensible** — custom Verticals can define their own stages, Skills, tools, evidence requirements, and completion standards.
+| Capability | What it means |
+|---|---|
+| **Persistent state** | Tasks, checkpoints, decisions, Skills, and evidence survive sessions and runtime upgrades. |
+| **Independent review** | Execution and verification stay separate; normal rounds end with a Reviewer judgment. |
+| **Four-role runtime** | Manager, Planner, Engineer, and Reviewer have distinct authority and responsibilities. |
+| **Real tool use** | Agents work through files, terminals, experiments, APIs, and inspectable artifacts. |
+| **Domain extensibility** | Verticals can define custom stages, tools, evidence requirements, and completion standards. |
+| **Multiple backends** | Run with GitHub Copilot CLI, Pi, Codex CLI, Claude Code, or OpenCode. |
 
 ## Runtime model
 
@@ -44,7 +49,7 @@ A project can stop, resume, survive a runtime replacement, and continue from its
 
 **Native backends:** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode`
 
-## Quick start
+## Quick Install
 
 ### Requirements
 
