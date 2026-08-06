@@ -1,33 +1,54 @@
-# Argus
+<div align="center">
 
-> An autonomous research and engineering runtime for work that takes longer than one model turn.
+# ARGUS
 
-[Website](https://argusbot.cn) · [Demo video](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [Technical report](technical_report/argus-technical-report.pdf) · [简体中文](README.zh-CN.md)
+### Persistent intelligence for autonomous research and engineering
 
-## What is Argus?
+Turn an open-ended goal into a durable workflow that can plan, build, verify, pause, and resume.
 
-Argus turns an open-ended objective into a persistent, reviewable workflow. It keeps project state across sessions and coordinates four independent roles:
+[Website](https://argusbot.cn) · [Demo](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [Technical Report](technical_report/argus-technical-report.pdf) · [简体中文](README.zh-CN.md)
 
-| Role | Responsibility |
+`Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
+
+</div>
+
+---
+
+## ✦ One goal. Four roles. Durable progress.
+
+Argus coordinates four independent, model-driven roles around persistent project state:
+
+| Role | Owns |
 |---|---|
-| **Manager** | Interprets the operator's intent, selects the workflow, and controls stage transitions. |
-| **Planner** | Chooses the next high-value task and defines its evidence requirements. |
-| **Engineer** | Implements, researches, runs experiments, and produces artifacts. |
-| **Reviewer** | Independently checks correctness, evidence, limitations, and completion. |
+| 🧭 **Manager** | Operator intent, workflow selection, and stage transitions |
+| 🗺️ **Planner** | The next high-value task and its evidence requirements |
+| 🛠️ **Engineer** | Implementation, research, experiments, and artifacts |
+| 🔎 **Reviewer** | Independent checks of correctness, evidence, limits, and completion |
 
-The runtime persists tasks, checkpoints, decisions, reusable Skills, and review evidence. A project can stop, resume, survive process upgrades, and continue from its last verified state.
+```text
+operator intent
+      │
+      ▼
+  Manager ──► Planner ──► Engineer ──► Reviewer
+      ▲                         │           │
+      └──── durable state ◄────┴───────────┘
+```
 
-Argus supports GitHub Copilot CLI, OpenAI Codex CLI, Claude Code, OpenCode, and Pi.
+Tasks, checkpoints, decisions, reusable Skills, and review evidence survive across sessions. A project can stop, resume, survive process upgrades, and continue from its latest verified state.
 
-## Install
+**Supported agent CLIs:** GitHub Copilot CLI · OpenAI Codex CLI · Claude Code · OpenCode · Pi
+
+---
+
+## ⚡ Quick start
 
 ### Requirements
 
 - Python 3.11+
 - Node.js 22+
-- One supported agent CLI, installed and authenticated through its official setup
+- One supported agent CLI installed and authenticated through its official login flow
 
-### 1. Clone and install
+### 1. Install
 
 ```bash
 git clone https://github.com/lbx154/Argus.git
@@ -39,9 +60,7 @@ python -m pip install --upgrade pip
 pip install -e .
 ```
 
-### 2. Configure a backend
-
-Choose the backend you already use:
+### 2. Connect your backend
 
 ```bash
 argus --setup --non-interactive \
@@ -49,9 +68,9 @@ argus --setup --non-interactive \
   --accept-house-rules
 ```
 
-Replace `copilot` with `codex`, `claude`, `opencode`, or `pi` when appropriate. Run the selected CLI's official login flow before starting Argus.
+Replace `copilot` with `codex`, `claude`, `opencode`, or `pi` as needed.
 
-### 3. Start
+### 3. Launch the terminal cockpit
 
 ```bash
 argus
@@ -64,7 +83,72 @@ argus --doctor
 argus --status
 ```
 
-## Update
+---
+
+## ◉ Web UI
+
+### Local desktop
+
+Start the API and Web UI, then open it in your default browser:
+
+```bash
+argus --web
+```
+
+The default address is [http://127.0.0.1:8799](http://127.0.0.1:8799).
+
+To start it without opening a browser:
+
+```bash
+argus --web --no-open
+```
+
+Use a different port when needed:
+
+```bash
+argus --web --port 8800
+```
+
+### Remote server over SSH — recommended
+
+On the server, keep Argus bound to localhost:
+
+```bash
+argus --web --no-open
+```
+
+On your computer, forward the port:
+
+```bash
+ssh -L 8799:127.0.0.1:8799 user@server
+```
+
+Then open [http://127.0.0.1:8799](http://127.0.0.1:8799) locally.
+
+<details>
+<summary><strong>Direct LAN access</strong></summary>
+
+Only bind to the LAN with a bearer token configured:
+
+```bash
+export ARGUS_SKILL_WEB_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+printf '%s\n' "$ARGUS_SKILL_WEB_TOKEN"
+argus --web --host 0.0.0.0 --port 8799 --no-open
+```
+
+Open the following URL from another machine, replacing the host and token:
+
+```text
+http://SERVER_IP:8799/?token=YOUR_TOKEN
+```
+
+Never expose `0.0.0.0` without `ARGUS_SKILL_WEB_TOKEN`.
+
+</details>
+
+---
+
+## ↻ Update
 
 ```bash
 cd Argus
