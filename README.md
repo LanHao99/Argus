@@ -10,11 +10,17 @@ Long-running agent work that can plan, execute, verify, pause, and continue beyo
 
 **Preview v0.1.1 · Official open-source release on the way.**
 
-[Website](https://argusbot.cn) · [Live Demo](docs/assets/argus-web-demo.webm?raw=1) · [Technical Report · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · **English** / [简体中文](README.zh-CN.md)
+[Website](https://argusbot.cn) · [Live Demos](https://argusbot.cn/start.html) · [Technical Report · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · **English** / [简体中文](README.zh-CN.md)
 
 `Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
 
 </div>
+
+<p align="center">
+  <a href="https://argusbot.cn">
+    <img src="docs/assets/argus-homepage.png" width="100%" alt="The top of the Argus website homepage">
+  </a>
+</p>
 
 ## Why Argus
 
@@ -37,18 +43,6 @@ Most agents are optimized for one conversation or one coding turn. Argus is buil
 A project can stop, resume, survive a runtime replacement, and continue from its latest verified position.
 
 **Native backends:** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode`
-
-## ▶ See Argus run
-
-<p align="center">
-  <a href="docs/assets/argus-web-demo.webm?raw=1">
-    <img src="docs/assets/argus-web-demo.webp" width="100%" alt="A real Argus Web UI session with Manager, Planner, Engineer, and Reviewer activity">
-  </a>
-</p>
-
-<p align="center">
-  <sub>A real Web UI session. Click the image to play the full recording · <a href="https://www.youtube.com/watch?v=i8Qy9HCboQE">Watch the project demo</a></sub>
-</p>
 
 ## Quick start
 
@@ -192,3 +186,39 @@ git pull --ff-only
 ```
 
 Argus detects stale local WebAPI and daemon processes and replaces them at a controlled task boundary.
+
+## ▶ Real runs
+
+These are complete or condensed recordings of real Argus tasks, not staged UI mockups.
+
+### Research direction to paper delivery
+
+<a href="https://argusbot.cn/assets/demos/argus-research-to-paper-condensed.mp4">
+  <img src="docs/assets/demos/research-to-paper.gif" width="100%" alt="Real Argus research-to-paper run">
+</a>
+
+### Web UI walkthrough
+
+<a href="https://argusbot.cn/assets/demos/argus-web-boxiu-86b683ba.webm">
+  <img src="docs/assets/demos/web-ui.gif" width="100%" alt="Real Argus Web UI walkthrough">
+</a>
+
+### AMA benchmark run
+
+<a href="https://argusbot.cn/assets/demos/argus-ama-benchmark-condensed.mp4">
+  <img src="docs/assets/demos/ama-benchmark.gif" width="100%" alt="Real Argus AMA benchmark run">
+</a>
+
+### Literary creation
+
+<a href="https://argusbot.cn/assets/demos/argus-literary-creation.mp4">
+  <img src="docs/assets/demos/literary-creation.gif" width="100%" alt="Real Argus literary-creation run">
+</a>
+
+### Computational mathematics
+
+<a href="https://argusbot.cn/assets/demos/argus-math-erdos-straus.mp4">
+  <img src="docs/assets/demos/computational-math.gif" width="100%" alt="Real Argus computational-mathematics run">
+</a>
+
+Click any recording to open the complete source video.

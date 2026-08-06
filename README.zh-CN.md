@@ -10,11 +10,17 @@
 
 **当前为 Preview v0.1.1 · 正式开源版正在路上。**
 
-[官方网站](https://argusbot.cn) · [真实运行演示](docs/assets/argus-web-demo.webm?raw=1) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [English](README.md) / **简体中文**
+[官方网站](https://argusbot.cn) · [真实运行演示](https://argusbot.cn/zh/start.html) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [English](README.md) / **简体中文**
 
 `Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
 
 </div>
+
+<p align="center">
+  <a href="https://argusbot.cn">
+    <img src="docs/assets/argus-homepage.png" width="100%" alt="Argus 官网首页顶部实际画面">
+  </a>
+</p>
 
 ## 为什么选择 Argus
 
@@ -37,18 +43,6 @@
 项目可以停止、恢复、跨运行时替换，并从最近一次已验证位置继续推进。
 
 **原生 Backend：** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode`
-
-## ▶ 看看 Argus 如何工作
-
-<p align="center">
-  <a href="docs/assets/argus-web-demo.webm?raw=1">
-    <img src="docs/assets/argus-web-demo.webp" width="100%" alt="Argus Web UI 真实运行画面，展示 Manager、Planner、Engineer 与 Reviewer 的活动">
-  </a>
-</p>
-
-<p align="center">
-  <sub>真实 Web UI 运行回放，点击图片播放完整视频 · <a href="https://www.youtube.com/watch?v=i8Qy9HCboQE">观看项目演示</a></sub>
-</p>
 
 ## 快速开始
 
@@ -192,3 +186,39 @@ git pull --ff-only
 ```
 
 Argus 会识别过期的本地 WebAPI 与 daemon，并在受控任务边界完成替换。
+
+## ▶ 真实运行回放
+
+以下内容来自真实 Argus 任务的完整或压缩回放，不是为了展示而制作的静态 UI。
+
+### 从研究方向到论文交付
+
+<a href="https://argusbot.cn/assets/demos/argus-research-to-paper-condensed.mp4">
+  <img src="docs/assets/demos/research-to-paper.gif" width="100%" alt="Argus 从研究方向到论文交付的真实运行回放">
+</a>
+
+### Web UI 真实操作
+
+<a href="https://argusbot.cn/assets/demos/argus-web-boxiu-86b683ba.webm">
+  <img src="docs/assets/demos/web-ui.gif" width="100%" alt="Argus Web UI 真实操作回放">
+</a>
+
+### AMA Benchmark
+
+<a href="https://argusbot.cn/assets/demos/argus-ama-benchmark-condensed.mp4">
+  <img src="docs/assets/demos/ama-benchmark.gif" width="100%" alt="Argus AMA Benchmark 真实运行回放">
+</a>
+
+### 文学创作
+
+<a href="https://argusbot.cn/assets/demos/argus-literary-creation.mp4">
+  <img src="docs/assets/demos/literary-creation.gif" width="100%" alt="Argus 文学创作真实运行回放">
+</a>
+
+### 计算数学
+
+<a href="https://argusbot.cn/assets/demos/argus-math-erdos-straus.mp4">
+  <img src="docs/assets/demos/computational-math.gif" width="100%" alt="Argus 计算数学真实运行回放">
+</a>
+
+点击任意动态回放，即可打开对应的完整原视频。
