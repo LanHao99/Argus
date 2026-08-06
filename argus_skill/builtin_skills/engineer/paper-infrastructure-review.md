@@ -1,6 +1,6 @@
 ---
 name: "Paper Infrastructure Review"
-description: "Run the model-backed gate that rejects reader-facing local environment, device, cache, path, and Argus/Codex configuration leaks in a research manuscript (venue-neutral; used by both EMNLP and AAAI pipelines)."
+description: "Run the model-backed gate that rejects reader-facing local environment, device, cache, path, credential, and orchestration leaks in a research manuscript."
 ---
 
 ## Title
@@ -12,15 +12,15 @@ Use this skill when a paper may contain local execution details that do not belo
 ## When to use
 - After editing Method, Experimental Setup, captions, tables, reproducibility appendix, or any configuration prose.
 - When validator output mentions `paper_infrastructure_*`, an infrastructure review generated before current sources, or final readiness is blocked by missing infrastructure review.
-- When the reviewer suspects environment, device, cache, local path, Argus/Codex daemon, route, or paper-generation details entered the paper.
+- When the reviewer suspects environment, device, cache, local path, internal route, or paper-generation details entered the paper.
 
 ## What to reject
 - Local hardware capacity, ordinals, and device placement such as GPU card numbers, `single local GPU`, local GPU/workstation/node labels, `cuda:6`, `CUDA_VISIBLE_DEVICES`, local device IDs, or node-specific execution notes.
 - Local software-environment descriptions that explain the authoring machine rather than the evaluated research system, including CUDA/driver/Python/conda/package tables, runtime environment blocks, or benchmark-machine notes when they are not needed as paper-facing method facts.
 - Local cache and filesystem configuration such as `HF_HOME`, `TRANSFORMERS_CACHE`, `TORCH_HOME`, `XDG_CACHE_HOME`, `/root/.cache`, `/root/...`, `/home/...`, or project-private paths.
-- Raw runner commands, script names, run IDs, or artifact paths that expose local device/config naming, such as `run_mind2web_gpu.py`, `mind2web-gpu-*`, `.venv`, `--output-root experiments`, `--benchmark-root benchmarks/...`, or project-private experiment directories rendered as the paper-facing reproducibility interface.
+- Raw runner commands, script names, run IDs, virtual-environment paths, private output roots, or project-specific experiment directories rendered as the paper-facing reproducibility interface.
 - Operational audit-bundle metadata promoted into main-body scientific prose: wall-clock logging, artifact hashes, status snapshots, progress logs, STOP-file cancellation contracts, internal manifest mechanics, provenance-refresh workflow details, or validator/review artifact names. Keep these in appendix replay notes, manifests, logs, or supplementary metadata unless the paper explicitly studies that infrastructure.
-- Argus/Codex authoring infrastructure: daemon handoff, engineer/reviewer/author routes, capability-vault configuration, validation artifacts, review artifacts, image-tool plumbing, API keys, private endpoints, or `gpt-5.5*` authoring/review routes.
+- Authoring infrastructure: daemon handoffs, internal role routes, capability-vault configuration, validation or review artifacts, image-tool plumbing, API keys, private endpoints, or authoring-model identifiers.
 - Any local config table that explains how the paper was generated rather than how the evaluated research system ran.
 
 ## What is allowed
@@ -35,7 +35,7 @@ Use this skill when a paper may contain local execution details that do not belo
    - figure/table captions and appendix prose
 2. Remove or rewrite leaks as reader-facing method facts:
    - Replace local device/cache/path text with benchmark protocol, model/backend, metric, budget, and artifact availability.
-   - Replace raw local runner paths/run IDs with neutral paper-facing labels such as "Mind2Web primary replay" plus seeds, split, metric, and artifact types.
+   - Replace raw local runner paths and run IDs with neutral paper-facing labels plus seeds, split, metric, and artifact types.
    - Move wall-clock/hash/status/progress/STOP-file details out of Method, Setup, Results, Analysis, and Conclusion; if needed, summarize them once in appendix-facing replay language.
    - Move local operational details to manifests/logs if they are needed for the daemon, not to the manuscript.
    - Keep evaluated model identifiers only when they describe the experiment itself.

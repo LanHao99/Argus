@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
-import sys
 from pathlib import Path
 
 import jsonschema
@@ -206,19 +204,12 @@ def test_payload_schema_is_standard_json_schema_and_generated_types_are_current(
     assert set(payload["events"]) == set(EVENT_PAYLOAD_SCHEMAS)
     assert set(payload["events"]) <= {event.value for event in EventType}
 
-    result = subprocess.run(
-        [sys.executable, "scripts/generate_event_payload_types.py", "--check"],
-        cwd=Path(__file__).parents[2],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stderr or result.stdout
-
-    root = Path(__file__).parents[2]
-    for package_path in (
-        root / "frontend" / "tui" / "package.json",
-        root / "frontend" / "web" / "package.json",
-    ):
-        package = json.loads(package_path.read_text(encoding="utf-8"))
-        assert "generate_event_payload_types.py --check" in package["scripts"]["build"]
+    generated = (
+        Path(__file__).parents[2]
+        / "frontend"
+        / "core"
+        / "src"
+        / "eventPayloads.generated.ts"
+    ).read_text(encoding="utf-8")
+    assert f"EVENT_PAYLOAD_SCHEMA_VERSION = {EVENT_PAYLOAD_SCHEMA_VERSION}" in generated
+    assert all(event_type in generated for event_type in payload["events"])

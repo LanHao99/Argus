@@ -246,10 +246,9 @@ These resources are allocated to you. Use them.
 - `CUDA_VISIBLE_DEVICES` is auto-set by the daemon. All training/inference inherits it.
 
 **API (for reward models, VLM scoring, image generation)**:
-- Config file: `~/.argus-skill/capabilities/model_api.json`
-- Read API key: `json.load(open(os.path.expanduser('~/.argus-skill/capabilities/model_api.json')))['capabilities']['model_api']['routes']['text']['api_key']`
-- Available routes: `text` (LLM), `image` (generation), `image_review` (VLM)
-- Use for: reward model scoring, VLM-based image quality evaluation, Qwen-VL as reward
+- Load named routes with `argus_skill.tools.capability_vault.load_model_api_route`; never open or print the capability file directly.
+- Available routes: `text` (LLM), `image` (generation), `image_review` (VLM).
+- Keep credentials in the capability vault or process environment and out of logs, prompts, and artifacts.
 
 **Project venv** (for ML dependencies):
 - Path: `.venv/bin/python` (in project directory)
@@ -402,11 +401,12 @@ All API-based inference MUST use the **OpenAI client interface**:
 
 ```python
 from openai import OpenAI
+from argus_skill.tools.capability_vault import load_model_api_route
 
-client = OpenAI(
-    api_key="...",
-    base_url="https://api.openai.com/v1",  # or Azure/compatible endpoint
-)
+route = load_model_api_route("text")
+if route is None:
+    raise RuntimeError("text model route is not configured")
+client = OpenAI(api_key=route.api_key, base_url=route.base_url)
 response = client.chat.completions.create(
     model="gpt-4o-mini",
     messages=[{"role": "user", "content": prompt}],
@@ -416,10 +416,12 @@ response = client.chat.completions.create(
 For Azure:
 ```python
 from openai import AzureOpenAI
+import os
+
 client = AzureOpenAI(
-    api_key="...",
-    api_version="2024-06-01",
-    azure_endpoint="https://your-resource.openai.azure.com",
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+    api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-06-01"),
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
 )
 ```
 

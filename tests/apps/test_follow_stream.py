@@ -165,7 +165,7 @@ def test_follow_coalescer_uses_latest_snapshot_even_when_shorter() -> None:
 
 
 def test_follow_progress_render_redacts_raw_secret() -> None:
-    secret = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345678901"
+    secret = "ghp_" + "A" * 36
     rendered = _follow._format_follow_event_body(
         {
             "type": "engineer.progress",

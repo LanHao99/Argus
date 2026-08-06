@@ -1263,7 +1263,7 @@ class DaemonSelfMaintenance(SelfMaintenanceState):
             dependency_root = self._dependency_source_root(state)
             with _frontend_dependency_links(dependency_root, worktree):
                 _run(
-                    [sys.executable, "scripts/build_release.py"],
+                    [sys.executable, "-m", "argus_skill.release_tools.build_release"],
                     cwd=worktree,
                     timeout=300.0,
                 )
@@ -1276,7 +1276,7 @@ class DaemonSelfMaintenance(SelfMaintenanceState):
                     + ", ".join(outside)
                 )
             _run(
-                [sys.executable, "scripts/generate_release_manifest.py", "--check"],
+                [sys.executable, "-m", "argus_skill.release_tools.generate_manifest", "--check"],
                 cwd=worktree,
                 timeout=120.0,
             )
@@ -1432,7 +1432,7 @@ class DaemonSelfMaintenance(SelfMaintenanceState):
             return False
         try:
             _run(
-                [sys.executable, "scripts/generate_release_manifest.py", "--check"],
+                [sys.executable, "-m", "argus_skill.release_tools.generate_manifest", "--check"],
                 cwd=candidate,
                 timeout=120.0,
             )

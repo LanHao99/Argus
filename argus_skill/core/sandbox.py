@@ -222,7 +222,7 @@ def _backend_support_executables(executable: Path) -> list[Path]:
         node = shutil.which("node")
         return [Path(node).resolve()] if node else []
     if executable.name == "copilot":
-        found: list[Path] = []
+        copilot_executables: list[Path] = []
         root = Path.home() / ".nvm" / "versions" / "node"
         for candidate in root.glob(
             "*/lib/node_modules/@github/copilot/node_modules/"
@@ -234,10 +234,10 @@ def _backend_support_executables(executable: Path) -> list[Path]:
                     and os.access(candidate, os.X_OK)
                     and os.path.realpath(candidate) != executable_real
                 ):
-                    found.append(candidate.resolve())
+                    copilot_executables.append(candidate.resolve())
             except OSError:
                 continue
-        return sorted(set(found), key=str)
+        return sorted(set(copilot_executables), key=str)
     if executable.name != "codex":
         return []
     roots = (
@@ -245,7 +245,7 @@ def _backend_support_executables(executable: Path) -> list[Path]:
         Path.home() / ".vscode-server-insiders" / "extensions",
         Path.home() / ".vscode" / "extensions",
     )
-    found: list[Path] = []
+    codex_executables: list[Path] = []
     for root in roots:
         for candidate in root.glob("openai.chatgpt-*/bin/*/codex"):
             try:
@@ -254,10 +254,10 @@ def _backend_support_executables(executable: Path) -> list[Path]:
                     and os.access(candidate, os.X_OK)
                     and os.path.realpath(candidate) != executable_real
                 ):
-                    found.append(candidate.resolve())
+                    codex_executables.append(candidate.resolve())
             except OSError:
                 continue
-    return sorted(set(found), key=str)
+    return sorted(set(codex_executables), key=str)
 
 
 def isolated_workdir_command(

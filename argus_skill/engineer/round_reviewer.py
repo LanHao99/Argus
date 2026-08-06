@@ -400,16 +400,10 @@ class RoundReviewerMixin:
                     interrupted_review.reason,
                     None,
                 ))
-            # Reviewer backend death (codex subprocess died / output-schema
-            # missing / runner raised) renders NO verdict. It must NEVER be
-            # laundered into a silent "continue": on 2026-06-25 a stale
-            # import-time schema path made every reviewer round exit 1, and the
-            # loop ran the sole completion gate BLIND for ~1.5h. Route it through
-            # the SAME transient-backoff + escalate-to-error machinery the
-            # engineer backend-failure path uses. ``backend_unavailable`` is an
-            # explicit infra-death marker — distinct from a genuine
-            # ``status="blocked"`` verdict (e.g. "blocked on GPU quota"), which
-            # is a real model judgment and is handled normally by ``_classify``.
+            # A Reviewer backend failure produces no verdict and must not become
+            # a silent continuation. Use the same retry and escalation path as
+            # Engineer backend failures. A genuine `blocked` verdict remains a
+            # model decision and follows normal classification.
             if not getattr(review, "backend_unavailable", False):
                 break
             state.reviewer_backend_failure_streak += 1

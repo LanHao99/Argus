@@ -875,15 +875,9 @@ _DO_NOT_RUN_MARKERS: tuple[str, ...] = (
 def looks_like_do_not_run_request(text: str) -> bool:
     """True iff ``text`` explicitly forbids running / asks for status only.
 
-    Used ONLY to make the triage-failure fallback safe (see
-    :func:`manager_triage`): when the Manager's classify call ERRORS, the front
-    door normally biases to "task" ("never drop work to a bad classify"), but if
-    the operator explicitly said "do not run / status only" then creating a real
-    mission on a *failed* classify is the wrong default — that is exactly how a
-    Chinese "请只做状态检查，不要运行任务" message got dispatched to the team on
-    2026-07-11 (the Manager's classify call had been blocked by the cost gate, so
-    triage raised and the message was treated as work). This never overrides a
-    SUCCESSFUL classify decision, so it cannot silently drop genuine work.
+    This protects the failure fallback: classification errors normally bias to
+    task dispatch, but an explicit no-run instruction must remain side-effect
+    free. A successful classification always takes precedence.
     """
     if not text:
         return False

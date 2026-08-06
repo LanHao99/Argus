@@ -53,7 +53,7 @@ Treat every item below as blocking for a final AAAI-ready claim:
    - Method/Experimental Setup must describe the actual research object,
      public evidence, strongest relevant comparisons, metrics, uncertainty method,
      and relevant configuration without assuming an agent/controller design.
-   - Setup/configuration and result tables must look like paper tables, not internal logs. They should include explicit `Benchmark`/`Source` and `Model`/`Backend` columns, task count/split, method or baseline role, metric, budget/decoding, and key result; they must not show `engineer`/`reviewer` route labels, `gpt-5.5*`, Argus/Codex configuration, validator names, or capability-vault details.
+   - Setup/configuration and result tables must look like paper tables, not internal logs. They should include explicit `Benchmark`/`Source` and `Model`/`Backend` columns, task count/split, method or baseline role, metric, budget/decoding, and key result; they must not show internal role/model route labels, authoring configuration, validator names, or capability-vault details.
    - Final results need a readable, domain-appropriate evidence presentation
      covering the selected public source(s), strongest relevant comparisons, and
      claim-critical outcomes. Do not force a cross-benchmark matrix or fixed

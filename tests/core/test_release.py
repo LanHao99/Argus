@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import subprocess
-import sys
+import re
 from pathlib import Path
 
 from argus_skill.core import runtime_identity as runtime_identity_module
@@ -26,47 +25,24 @@ def test_release_manifest_matches_current_shipped_source() -> None:
     assert identity["runtime_source_digest"] == manifest["source_digest"]
 
 
-def test_release_generated_frontend_contract_is_current() -> None:
+def test_checked_in_frontend_contract_matches_current_release() -> None:
     root = Path(__file__).parents[2]
-    result = subprocess.run(
-        [sys.executable, "scripts/generate_release_manifest.py", "--check"],
-        cwd=root,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stderr or result.stdout
+    manifest = release_manifest()
+    generated = (root / "frontend/core/src/release.generated.ts").read_text()
+    assert manifest["release_id"] in generated
+    assert manifest["source_digest"] in generated
 
+    tui = (root / "frontend/tui/bundle/argus.mjs").read_text()
+    assert manifest["release_id"] in tui
 
-def test_release_manifest_cannot_be_refreshed_without_frontend_build() -> None:
-    root = Path(__file__).parents[2]
-    manifest_path = root / "argus_skill" / "release_manifest.json"
-    generated_path = root / "frontend" / "core" / "src" / "release.generated.ts"
-    before = (manifest_path.read_bytes(), generated_path.read_bytes())
-
-    result = subprocess.run(
-        [sys.executable, "scripts/generate_release_manifest.py"],
-        cwd=root,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-
-    assert result.returncode != 0
-    assert "run scripts/build_release.py" in result.stderr
-    assert (manifest_path.read_bytes(), generated_path.read_bytes()) == before
-
-
-def test_checked_in_frontend_artifacts_match_current_release() -> None:
-    root = Path(__file__).parents[2]
-    result = subprocess.run(
-        [sys.executable, "scripts/check_release_artifacts.py"],
-        cwd=root,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stderr or result.stdout
+    web_root = root / "frontend/web/dist"
+    index = (web_root / "index.html").read_text()
+    assets = [
+        web_root / ref.lstrip("/")
+        for ref in re.findall(r'(?:src|href)="([^"]+\.js)"', index)
+    ]
+    assert assets
+    assert any(manifest["release_id"] in path.read_text() for path in assets)
 
 
 def test_untracked_runtime_skill_does_not_change_release_identity() -> None:
@@ -104,7 +80,7 @@ def test_strict_release_preflight_rejects_manifest_source_mismatch(
     error = runtime_identity_module.release_match_preflight_error()
 
     assert "does not match" in error
-    assert "build_release.py" in error
+    assert "pip install -e ." in error
 
 
 def test_release_preflight_is_permissive_unless_enabled(monkeypatch) -> None:

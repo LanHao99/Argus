@@ -179,8 +179,9 @@ def _publication_repo(tmp_path: Path) -> tuple[Path, str]:
         cwd=repo,
         check=True,
     )
-    (repo / "argus_skill").mkdir()
-    (repo / "scripts").mkdir()
+    (repo / "argus_skill" / "release_tools").mkdir(parents=True)
+    (repo / "argus_skill" / "__init__.py").write_text("", encoding="utf-8")
+    (repo / "argus_skill" / "release_tools" / "__init__.py").write_text("", encoding="utf-8")
     (repo / "frontend" / "core" / "src").mkdir(parents=True)
     (repo / "frontend" / "tui" / "bundle").mkdir(parents=True)
     (repo / "frontend" / "web" / "dist" / "assets").mkdir(parents=True)
@@ -189,9 +190,9 @@ def _publication_repo(tmp_path: Path) -> tuple[Path, str]:
         encoding="utf-8",
     )
     (repo / "argus_skill" / "base.py").write_text("BASE = 1\n", encoding="utf-8")
-    (repo / "scripts" / "generate_release_manifest.py").write_text(
+    (repo / "argus_skill" / "release_tools" / "generate_manifest.py").write_text(
         "import pathlib, subprocess, sys\n"
-        "root = pathlib.Path(__file__).resolve().parents[1]\n"
+        "root = pathlib.Path(__file__).resolve().parents[2]\n"
         "tracked = subprocess.check_output(['git', 'ls-files'], cwd=root, text=True)\n"
         "expected = 'new-feature\\n' if 'argus_skill/new_feature.py' in tracked else 'base\\n'\n"
         "manifest = root / 'argus_skill' / 'release_manifest.json'\n"
@@ -205,12 +206,13 @@ def _publication_repo(tmp_path: Path) -> tuple[Path, str]:
         "generated.write_text(expected)\n",
         encoding="utf-8",
     )
-    (repo / "scripts" / "build_release.py").write_text(
+    (repo / "argus_skill" / "release_tools" / "build_release.py").write_text(
         "import pathlib, subprocess, sys\n"
-        "root = pathlib.Path(__file__).resolve().parents[1]\n"
+        "root = pathlib.Path(__file__).resolve().parents[2]\n"
         "subprocess.run([\n"
         "    sys.executable,\n"
-        "    'scripts/generate_release_manifest.py',\n"
+        "    '-m',\n"
+        "    'argus_skill.release_tools.generate_manifest',\n"
         "    '--prepare-build',\n"
         "], cwd=root, check=True)\n"
         "release = (root / 'argus_skill/release_manifest.json').read_text()\n"
@@ -1202,7 +1204,7 @@ def test_dirty_resume_candidate_is_rejected_before_its_validator_runs(
     controller = _controller(tmp_path, _Manager())
     candidate, commit = _publication_repo(tmp_path)
     marker = tmp_path / "untrusted-validator-ran"
-    validator = candidate / "scripts" / "generate_release_manifest.py"
+    validator = candidate / "argus_skill" / "release_tools" / "generate_manifest.py"
     validator.write_text(
         f"from pathlib import Path\nPath({str(marker)!r}).write_text('ran')\n",
         encoding="utf-8",
@@ -1406,7 +1408,12 @@ def test_publication_stages_new_files_and_preserves_repository_identity(
     ).stdout.strip()
     assert author == "seed <seed@example.com>"
     subprocess.run(
-        [sys.executable, "scripts/generate_release_manifest.py", "--check"],
+        [
+            sys.executable,
+            "-m",
+            "argus_skill.release_tools.generate_manifest",
+            "--check",
+        ],
         cwd=repo,
         check=True,
     )
@@ -1422,7 +1429,7 @@ def test_publication_cleans_ignored_worktree_artifacts(tmp_path: Path) -> None:
     malicious = repo / "frontend" / "web" / "node_modules"
     malicious.mkdir(parents=True)
     (malicious / "vite").write_text("malicious\n", encoding="utf-8")
-    bytecode = repo / "scripts" / "sitecustomize.pyc"
+    bytecode = repo / "sitecustomize.pyc"
     bytecode.write_bytes(b"untrusted bytecode")
     controller._write_state(
         phase="queued",

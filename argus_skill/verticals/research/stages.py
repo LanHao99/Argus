@@ -356,7 +356,7 @@ STAGE_CHECKLISTS: dict[str, tuple[ChecklistItem, ...]] = {
                 "paper/main.pdf compiles cleanly: no '??' citations, no undefined "
                 "references, no material overflow, and no LaTeX errors. Its body and "
                 "back matter obey the selected venue's actual page and format rules; "
-                "do not pad a weak argument to fill a historical page quota."
+                "do not pad a weak argument merely to fill a page quota."
             ),
             evidence_hint="paper/main.pdf + paper/main.log",
         ),
@@ -388,8 +388,8 @@ STAGE_CHECKLISTS: dict[str, tuple[ChecklistItem, ...]] = {
         ChecklistItem(
             id="review.infrastructure",
             statement=(
-                "Paper prose contains no local paths (/root/, /home/), no Argus / "
-                "Codex / daemon route names, no capability vault references, no "
+                "Paper prose contains no local paths (/root/, /home/), no internal "
+                "orchestration or daemon route names, no capability-vault references, no "
                 "device IDs, no API keys — the manuscript is publication-clean."
             ),
             evidence_hint="grep main.tex for '/root/', 'CUDA_VISIBLE_DEVICES', 'argus-skill', 'codex', 'OPENAI_API_KEY'",
@@ -614,8 +614,8 @@ def _apply_venue_to_checklist_body(body: str, venue: VenueProfile) -> str:
                 "official repository); none is invented or auto-completed."
             ),
             (
-                "Paper prose contains no local paths (/root/, /home/), no Argus / "
-                "Codex / daemon route names, no capability vault references, no "
+                "Paper prose contains no local paths (/root/, /home/), no internal "
+                "orchestration or daemon route names, no capability-vault references, no "
                 "device IDs, no API keys — the manuscript is publication-clean."
             ): (
                 "Paper prose contains no local paths, credentials, capability-vault "

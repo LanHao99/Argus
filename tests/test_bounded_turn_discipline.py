@@ -65,10 +65,9 @@ def test_long_experiment_protocol_is_in_every_engineer_turn():
     )
 
     for out in (full, compact):
-        assert "docs/LIVE_EXPERIMENT_PROTOCOL.md" in out
+        assert "launch a supervised subagent" in out
         assert "supervised subagent" in out.lower()
-        assert "foreground bash" in out.lower()
-        assert "`read_bash`" in out
+        assert "foreground shell execution" in out.lower()
         assert "polling" in out.lower()
 
 

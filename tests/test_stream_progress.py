@@ -173,7 +173,7 @@ def test_progress_callback_redacts_secrets_before_live_sink() -> None:
     """Live sinks may not wrap JsonlEventSink, so redact at the source."""
     sink = _RecordingSink()
     cb = make_stream_progress_callback(sink)
-    secret = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345678901"
+    secret = "ghp_" + "A" * 36
     line = json.dumps({
         "type": "item.completed",
         "item": {

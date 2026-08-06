@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import os
 
-from scripts import build_release
+from argus_skill.release_tools import build_release
 
 
-def test_release_frontend_subprocesses_use_current_python_bin(monkeypatch) -> None:
+def test_release_subprocesses_use_current_python_bin(monkeypatch) -> None:
     captured = {}
     monkeypatch.setattr(build_release.sys, "executable", "/opt/argus-venv/bin/python")
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
@@ -21,3 +21,4 @@ def test_release_frontend_subprocesses_use_current_python_bin(monkeypatch) -> No
     assert captured["argv"] == ("npm", "run", "build")
     assert captured["check"] is True
     assert captured["env"]["PATH"].split(os.pathsep)[0] == "/opt/argus-venv/bin"
+    assert captured["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(build_release.ROOT)

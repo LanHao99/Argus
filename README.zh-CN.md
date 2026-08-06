@@ -1,29 +1,33 @@
 # Argus
 
-[English](README.md) · **简体中文**
+> 面向长周期任务的自主科研与工程运行时，让工作不再受限于一次模型调用。
 
-## 项目简介
+[官方网站](https://argusbot.cn) · [演示视频](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [技术报告](technical_report/argus-technical-report.pdf) · [English](README.md)
 
-Argus 面向长周期任务的自主科研与工程运行时，由四个持续协作的 AI 角色组成：
+## Argus 是什么？
 
-- **Manager**：理解 operator 意图、选择工作流并控制阶段迁移。
-- **Planner**：把目标拆解为可执行任务和证据要求。
-- **Engineer**：实现代码、开展调研和实验并生成产物。
-- **Reviewer**：独立检查正确性、证据、局限和完成状态。
+Argus 将开放目标转化为可持续、可审查的工作流。它跨 session 保存项目状态，并协调四个相互独立的角色：
 
-项目状态、任务历史、检查点、Skill 与审查证据会跨 session 持久化。Argus 支持 GitHub Copilot CLI、OpenAI Codex CLI、Claude Code、OpenCode 与 Pi 后端。
+| 角色 | 职责 |
+|---|---|
+| **Manager** | 理解 operator 意图、选择工作流并控制阶段迁移。 |
+| **Planner** | 选择下一项高价值任务并定义证据要求。 |
+| **Engineer** | 实现代码、开展调研和实验并生成产物。 |
+| **Reviewer** | 独立检查正确性、证据、局限和完成状态。 |
 
-[Technical Report PDF](technical_report/argus-technical-report.pdf)
+运行时会持久化任务、检查点、决策、可复用 Skill 与审查证据。项目可以停止、恢复、跨进程升级，并从最近一次已验证状态继续运行。
 
-## 安装方法
+Argus 支持 GitHub Copilot CLI、OpenAI Codex CLI、Claude Code、OpenCode 与 Pi。
+
+## 安装
 
 ### 环境要求
 
-- Python 3.11 或更高版本
-- Node.js 22 或更高版本
-- 至少安装并登录一个受支持的 agent CLI
+- Python 3.11+
+- Node.js 22+
+- 至少一个已按官方方法安装并完成鉴权的 agent CLI
 
-### 源码安装
+### 1. 克隆并安装
 
 ```bash
 git clone https://github.com/lbx154/Argus.git
@@ -35,54 +39,38 @@ python -m pip install --upgrade pip
 pip install -e .
 ```
 
-安装并登录一个后端。使用 GitHub Copilot：
+### 2. 配置后端
+
+选择你已经在使用的后端：
 
 ```bash
-npm install -g @github/copilot
-copilot login
 argus --setup --non-interactive \
   --backend copilot \
   --accept-house-rules
+```
+
+可将 `copilot` 替换为 `codex`、`claude`、`opencode` 或 `pi`。启动 Argus 前，请先使用对应 CLI 的官方登录流程完成鉴权。
+
+### 3. 启动
+
+```bash
 argus
 ```
 
-使用 Pi：
+常用检查：
 
 ```bash
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent
-pi  # 执行 /login，完成鉴权后退出 Pi
-argus --setup --non-interactive \
-  --backend pi \
-  --accept-house-rules
-argus
+argus --doctor
+argus --status
 ```
 
-其他受支持后端的安装命令：
-
-```bash
-npm install -g @openai/codex@latest
-npm install -g @anthropic-ai/claude-code
-curl -fsSL https://opencode.ai/install | bash
-```
-
-### npm beta 安装
-
-```bash
-npm install -g @github/copilot
-copilot login
-npm install -g @argusevolve/argus@beta
-argus --setup --non-interactive \
-  --backend copilot \
-  --accept-house-rules
-argus
-```
-
-### 更新源码安装
+## 更新
 
 ```bash
 cd Argus
 git pull --ff-only
-. .venv/bin/activate
-pip install -e .
-argus
+.venv/bin/python -m pip install -e .
+.venv/bin/argus
 ```
+
+启动器会识别过期的本地 WebAPI 与 daemon，并在受控任务边界完成替换。

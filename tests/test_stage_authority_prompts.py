@@ -27,10 +27,10 @@ def _src(rel: str) -> str:
 
 def test_planner_role_gives_stage_authority_to_manager() -> None:
     text = load_builtin_skill_text("argus-planner-role.md")
-    assert "The Manager alone edits" in text
+    assert "Manager alone changes" in text
     assert "research/PIPELINE_STATE.json" in text
     assert "report an upstream stage defect" in text
-    assert "A partial result or clean process is not completion" in text
+    assert "does not by itself prove completion" in text
     # the old "the reviewer advances the stage" wording is gone
     assert "until the reviewer has" not in text
 

@@ -161,14 +161,8 @@ class PlanningCycleMixin(
             "trigger": "open_ended_terminal_stage_reconciliation",
         })
         if decision.action != "rollback":
-            # `complete` and `hold` both mean the same thing to the caller: the
-            # pipeline is not going backwards and there is no earlier-stage work
-            # to enqueue, so the campaign should idle rather than raise a planner
-            # error. Only `hold` used to appear here, because a non-paper
-            # vertical could never obtain a `complete` — the scope interlock
-            # fixed on 2026-07-26 made that decision reachable for the first
-            # time, and without this the newly-correct verdict fell through to
-            # the error path.
+            # `complete` and `hold` both mean there is no earlier-stage work to
+            # enqueue. Idle instead of turning either decision into a Planner error.
             if decision.action in {"hold", "complete"} and decision.source == "manager_llm":
                 return "hold"
             return ""
@@ -333,24 +327,8 @@ class PlanningCycleMixin(
         contract = getattr(verdict, "waiting_contract", None)
         blocker_fingerprint, recheck_token = self._waiting_contract_key(contract)
         if not blocker_fingerprint or not recheck_token:
-            # A wait with no contract is where the Manager review matters most,
-            # not least: we know least about why the Planner stopped. This used
-            # to return immediately, which made the liveness review that this
-            # method's own docstring promises for "every new non-operator wait"
-            # unreachable whenever the Planner omitted the contract fields.
-            #
-            # Measured on 2026-07-26
-            # (a project event log): several
-            # consecutive waits, every one with `waiting_contract: null`, so
-            # zero Manager reviews. The Planner even said why it was stuck —
-            # "only the Manager may advance current_stage from scope to
-            # environment" — and the one authority that could act was never
-            # asked. Thirteen provider calls, no progress.
-            #
-            # Deduplication still has to work or an uncontracted wait would
-            # re-review every cycle, so the key falls back to the stage plus a
-            # digest of the Planner's own stated reason: same stage, same
-            # explanation, same wait.
+            # Uncontracted waits still require Manager review. Use stage plus a
+            # digest of the Planner's reason as a stable deduplication key.
             reason = " ".join(
                 str(
                     getattr(verdict, "waiting_reason", "")

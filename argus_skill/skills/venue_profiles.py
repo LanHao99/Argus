@@ -337,7 +337,7 @@ EMNLP_PROFILE = VenueProfile(
     venue_skill_files=(
         "emnlp-paper-drafting.md",
         "emnlp-format-preflight.md",
-        "emnlp-paper-skill-router.md",
+        "venue-paper-skill-router.md",
         "emnlp-academic-language-review.md",
     ),
 )
@@ -382,7 +382,7 @@ AAAI_PROFILE = VenueProfile(
     venue_skill_files=(
         "aaai-paper-drafting.md",
         "aaai-format-preflight.md",
-        "aaai-paper-skill-router.md",
+        "venue-paper-skill-router.md",
         "aaai-academic-language-review.md",
     ),
 )

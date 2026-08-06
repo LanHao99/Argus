@@ -11,7 +11,7 @@ Contract — ``paper/REVIEWER_QUESTIONS.json``:
 
     {
       "schema_version": 1,
-      "generated_at": "2026-06-03T12:00:00Z",
+      "generated_at": "<ISO-8601 timestamp>",
       "questions": [
         {
           "id": "Q1",

@@ -64,7 +64,7 @@ Run the final narrative/prose gate for an AAAI-style paper. This skill adapts wo
    - The Method and Experimental Setup must describe the actual research object,
      public evidence, strongest relevant comparisons, metrics, uncertainty method,
      and relevant configuration without assuming an agent/controller design.
-   - Add a compact system/configuration table when prose alone would be ambiguous. The table must be professional and paper-facing: benchmark/component name, task count/split, evaluated model/backend, method or baseline role, runtime/harness, metric, budget/decoding, and the numerical takeaway. It must not expose Argus/Codex route names, engineer/reviewer/author roles, `gpt-5.5*`, API keys, private endpoints, capability-vault contents, or validation artifacts.
+   - Add a compact system/configuration table when prose alone would be ambiguous. The table must be professional and paper-facing: benchmark/component name, task count/split, evaluated model/backend, method or baseline role, runtime/harness, metric, budget/decoding, and the numerical takeaway. It must not expose internal route names, authoring roles or models, API keys, private endpoints, capability-vault contents, or validation artifacts.
    - Require a clear, reader-facing evidence presentation appropriate to the
      contribution. Do not force a cross-benchmark matrix or fixed source count.
    - Reject vague phrases such as "our system" when the paper omits the actual

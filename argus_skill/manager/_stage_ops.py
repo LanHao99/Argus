@@ -331,12 +331,8 @@ class _StageDecisionMixin:
 
         _completion_vertical = resolve_vertical(root)
         _research_target_level = resolve_research_target_level(root)
-        # Carry the trigger's own words only when the trigger agreed. A hold's
-        # reason attached to a `complete` transition is what gets persisted into
-        # stage_history, and an operator reading `direction: complete` beside
-        # `reason: manager held (default)` cannot tell what actually happened —
-        # observed verbatim in a real run on 2026-07-26. Name the override
-        # instead of inheriting a contradiction.
+        # A completed transition must not inherit the contradictory reason from
+        # an overridden hold decision. Record the completion trigger instead.
         final_decision = final_stage_completion_decision(
             review,
             current_stage=cur,

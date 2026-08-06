@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def run(*argv: str, cwd: Path = ROOT) -> None:
@@ -21,6 +21,9 @@ def run(*argv: str, cwd: Path = ROOT) -> None:
     env["PATH"] = os.pathsep.join(
         value for value in (python_bin, env.get("PATH", "")) if value
     )
+    env["PYTHONPATH"] = os.pathsep.join(
+        value for value in (str(ROOT), env.get("PYTHONPATH", "")) if value
+    )
     subprocess.run(argv, cwd=cwd, check=True, env=env)
 
 
@@ -30,15 +33,24 @@ def main() -> int:
         # must be refreshed before computing the manifest. Reversing these two
         # steps makes a schema change require two builds: the first build updates
         # types and then correctly rejects its now-stale manifest.
-        run(sys.executable, "scripts/generate_event_payload_types.py")
         run(
             sys.executable,
-            "scripts/generate_release_manifest.py",
+            "-m",
+            "argus_skill.release_tools.generate_event_types",
+        )
+        run(
+            sys.executable,
+            "-m",
+            "argus_skill.release_tools.generate_manifest",
             "--prepare-build",
         )
         run("npm", "run", "build", cwd=ROOT / "frontend" / "web")
         run("npm", "run", "build", cwd=ROOT / "frontend" / "tui")
-        run(sys.executable, "scripts/check_release_artifacts.py")
+        run(
+            sys.executable,
+            "-m",
+            "argus_skill.release_tools.check_artifacts",
+        )
     except subprocess.CalledProcessError as exc:
         return int(exc.returncode or 1)
     manifest = json.loads((ROOT / "argus_skill" / "release_manifest.json").read_text())

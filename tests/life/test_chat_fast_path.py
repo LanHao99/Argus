@@ -395,11 +395,11 @@ def test_execute_self_path_one_turn_no_reviewer(tmp_path: Path) -> None:
     assert any(e.get("type") == "loop.done" and "(simple)" in str(e.get("text"))
                for e in sink.events)
     assert "算 17*23" in backend.calls[0]["prompt"]
-    assert "Daemon supervision and source maintenance" in backend.calls[0]["prompt"]
+    assert "Runtime maintenance must use an isolated worktree" in backend.calls[0]["prompt"]
 
 
 def test_manager_self_progress_blocks_redacted_before_live_sink() -> None:
-    secret = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345678901"
+    secret = "ghp_" + "A" * 36
     backend = _FakeBackend(
         response_message=f"final token {secret}",
         stream_message=f"streamed token {secret}",

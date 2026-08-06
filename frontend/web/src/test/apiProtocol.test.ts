@@ -85,7 +85,7 @@ describe('web API protocol handshake', () => {
 
     await expect(api.listProjects()).resolves.toEqual([]);
     expect(warning).toHaveBeenCalledWith(expect.stringMatching(
-      /source differs from its release manifest/,
+      /source differs from its prebuilt release artifacts/,
     ));
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
       '/api/meta',

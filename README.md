@@ -1,29 +1,33 @@
 # Argus 
 
-**English** · [简体中文](README.zh-CN.md)
+> An autonomous research and engineering runtime for work that takes longer than one model turn.
 
-## Overview
+[Website](https://argusbot.cn) · [Demo video](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [Technical report](technical_report/argus-technical-report.pdf) · [简体中文](README.zh-CN.md)
 
-Argus is an autonomous research and engineering runtime for long-horizon work. It coordinates four persistent AI roles:
+## What is Argus?
 
-- **Manager** — interprets operator intent, selects the workflow, and controls stage transitions.
-- **Planner** — decomposes the objective into executable tasks and evidence requirements.
-- **Engineer** — implements, researches, runs experiments, and produces artifacts.
-- **Reviewer** — independently checks correctness, evidence, limitations, and completion.
+Argus turns an open-ended objective into a persistent, reviewable workflow. It keeps project state across sessions and coordinates four independent roles:
 
-Project state, task history, checkpoints, skills, and review evidence are persisted across sessions. Argus supports GitHub Copilot CLI, OpenAI Codex CLI, Claude Code, OpenCode, and Pi backends.
+| Role | Responsibility |
+|---|---|
+| **Manager** | Interprets the operator's intent, selects the workflow, and controls stage transitions. |
+| **Planner** | Chooses the next high-value task and defines its evidence requirements. |
+| **Engineer** | Implements, researches, runs experiments, and produces artifacts. |
+| **Reviewer** | Independently checks correctness, evidence, limitations, and completion. |
 
-[Technical Report PDF](technical_report/argus-technical-report.pdf)
+The runtime persists tasks, checkpoints, decisions, reusable Skills, and review evidence. A project can stop, resume, survive process upgrades, and continue from its last verified state.
 
-## Installation
+Argus supports GitHub Copilot CLI, OpenAI Codex CLI, Claude Code, OpenCode, and Pi.
+
+## Install
 
 ### Requirements
 
-- Python 3.11 or newer
-- Node.js 22 or newer
-- One supported agent CLI with valid authentication
+- Python 3.11+
+- Node.js 22+
+- One supported agent CLI, installed and authenticated through its official setup
 
-### Source installation
+### 1. Clone and install
 
 ```bash
 git clone https://github.com/lbx154/Argus.git
@@ -35,54 +39,38 @@ python -m pip install --upgrade pip
 pip install -e .
 ```
 
-Install and authenticate one backend. For GitHub Copilot:
+### 2. Configure a backend
+
+Choose the backend you already use:
 
 ```bash
-npm install -g @github/copilot
-copilot login
 argus --setup --non-interactive \
   --backend copilot \
   --accept-house-rules
+```
+
+Replace `copilot` with `codex`, `claude`, `opencode`, or `pi` when appropriate. Run the selected CLI's official login flow before starting Argus.
+
+### 3. Start
+
+```bash
 argus
 ```
 
-For Pi:
+Useful checks:
 
 ```bash
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent
-pi  # run /login, then exit Pi after authentication
-argus --setup --non-interactive \
-  --backend pi \
-  --accept-house-rules
-argus
+argus --doctor
+argus --status
 ```
 
-Other supported backend installers:
-
-```bash
-npm install -g @openai/codex@latest
-npm install -g @anthropic-ai/claude-code
-curl -fsSL https://opencode.ai/install | bash
-```
-
-### npm beta installation
-
-```bash
-npm install -g @github/copilot
-copilot login
-npm install -g @argusevolve/argus@beta
-argus --setup --non-interactive \
-  --backend copilot \
-  --accept-house-rules
-argus
-```
-
-### Update a source installation
+## Update
 
 ```bash
 cd Argus
 git pull --ff-only
-. .venv/bin/activate
-pip install -e .
-argus
+.venv/bin/python -m pip install -e .
+.venv/bin/argus
 ```
+
+The launcher detects stale local WebAPI and daemon processes and replaces them at a controlled task boundary.

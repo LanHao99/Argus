@@ -145,15 +145,9 @@ def _staged_goal_completion_issue(project_root: object) -> str:
 def goal_gate_task_title(project_root: object) -> str:
     """Name the Goal Gate mission after the stage it has to finish.
 
-    "Complete and certify the current Goal Gate" was the title of every such
-    mission regardless of stage. On a single-stage vertical like `software`
-    that is the mission which does *all* the work, so an operator watching the
-    queue saw a task named after certification while the Engineer was actually
-    writing the code — observed on all twelve runs on 2026-07-26.
-
-    Naming the stage also makes the deduplication signature stage-specific,
-    which is more correct: the gate task for `delivery` and the gate task for
-    `submission` are different work, not a repeat.
+    Include the active stage so the operator sees the work being completed, not
+    only the certification step. The stage name also keeps deduplication keys
+    distinct across different gates.
     """
     from ...skills.stage_machine import current_stage
 

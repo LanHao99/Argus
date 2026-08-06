@@ -16,8 +16,6 @@ from ..tools.capability_vault import (
 
 _PROFILE_ENV = "ARGUS_SKILL_RESEARCH_PROFILE"
 _PROFILE_PATH_ENV = "ARGUS_SKILL_RESEARCH_PROFILE_PATH"
-_EMNLP2026_PROFILE = "emnlp2026-tierharness"
-_AAAI2026_PROFILE = "aaai2026-tierharness"
 _NANOCHAT_PROFILE = "nanochat-autoresearch"
 _DEFAULT_TEXT_MODELS = "gpt-5.5,gpt-5.5"
 _DEFAULT_IMAGE_MODEL = "gpt-image-2"
@@ -207,149 +205,10 @@ def _capability_context(env: Mapping[str, str]) -> str:
         "or Torch checkpoints into project directories. Reuse the shared host "
         "cache paths above for every project and experiment subprocess.\n"
         "- Manuscript boundary: capability-vault paths, cache paths, local device "
-        "IDs, daemon configuration, and Argus/Codex route names are agent-only "
+        "IDs, daemon configuration, and internal route names are agent-only "
         "runtime facts. Keep them out of rendered paper prose, captions, tables, "
         "and appendix text; use paper-facing evaluated system facts instead.\n"
     )
-
-
-def _default_emnlp2026_profile() -> str:
-    return """## Research profile: EMNLP 2026 TierHarness project
-
-Long-horizon goal:
-- Produce an EMNLP 2026 paper and supporting artifacts for TierHarness, the
-  agent system currently implemented in this repository as argus-skill.
-- Treat the desired paper claims as hypotheses until backed by reproducible
-  evidence. Do not write or summarize any benchmark number as fact unless a raw
-  artifact path proves it.
-
-Paper hypotheses to test:
-1. There is a hierarchy SLM -> LLM -> HUMAN where each tier is more capable but
-   more expensive in money, latency, and human attention.
-2. TierHarness uses this hierarchy through budgeted escalation: cheap model
-   work first, LLM/reviewer repair only after objective verifier failure, and
-   human attention only after autonomous repair is exhausted.
-3. Current agent benchmarks under-report human interaction. The project must
-   define and measure zero-touch success, human turns after assignment, active
-   attention minutes, manual commands, intervention severity, and rescue rate.
-4. Multi-agent structure is necessary where single-agent loops self-satisfy,
-   ignore verifier evidence, or fail to repair hard tasks.
-5. The planner can propose trivial objectives; prevent that by requiring every
-   planned task to create or improve a concrete artifact under benchmarks/,
-   experiments/, paper/, figures/, docs/, or tests/, with measurable acceptance.
-
-Evidence and anti-fabrication rules:
-- Every experimental claim must cite a local artifact path containing raw
-  reward, model id, token counters, prompt/config hash, command, commit or
-  working-tree manifest, started/ended timestamps, and logs.
-- New research-paper missions must target frontier-domain gaps grounded in
-  current literature and official benchmark evidence. Do not accept a
-  synthetic proxy benchmark, local generated task set, hand-written oracle, or
-  tiny custom scorer as the main proposed paper system when real benchmarks and
-  GPU-scale training/adaptation are available.
-- Paper-facing benchmark results must come from existing real benchmarks or
-  official task/data releases with documented ground truth/evaluation. Synthetic
-  or local tasks are smoke-only unless the operator explicitly changes the
-  deliverable away from a submission-quality empirical paper.
-- If evidence is missing, create a task to collect it; never fill gaps with
-  estimates or optimistic prose.
-- Final EMNLP completion is a separate `final_submission` scope. The project is
-  not done until the L2 reviewer certifies the full pipeline checklist (research
-  → submission) as `done` — every checklist item satisfied with concrete
-  evidence — and that certified verdict is present in journal evidence.
-- Passing a single stage's checklist, a pilot run, or an existing
-  PDF is not enough for project_done. If the full checklist is not certified,
-  queue bounded blocker tasks for the reported experiment, baseline, ablation,
-  paper-contract, assurance, manifest, or submission-state gaps.
-- For positive EMNLP paper objectives, final readiness requires a structured
-  `paper/PAPER_QUALITY_CALIBRATION.json.paper_contribution` claim in the
-  research.md form: "We propose X. We show X improves Y by Z because W." The
-  proposed artifact/protocol must beat the strongest nontrivial baseline on the
-  declared primary metric and on any held-out/public-validation split, with a
-  local statistical-support artifact. Do not let Reflexion or another baseline
-  winning over a trivial direct/no-skill baseline stand in for the proposed
-  contribution winning.
-- If experiments reject the method-positive thesis, do not relabel the package
-  as a negative-result paper and declare success. Queue bounded repair or pivot
-  tasks for the method, benchmark, metric, or objective unless the operator has
-  explicitly requested a negative-result paper.
-- Use `scope: bounded` for intermediate missions even when they mention EMNLP;
-  reserve `scope: final_submission` for the single project-final readiness proof.
-
-Autonomy and background-experiment rules:
-- Long experiments must be launched as background jobs with a unique run_id.
-  Write experiments/<run_id>/manifest.json, pid, stdout.log, stderr.log, and a
-  status file before returning from the mission.
-- Any experiment with more than 5 model/API calls or expected runtime above
-  roughly 60 seconds must implement the Live Experiment Protocol:
-  progress.jsonl, status.json, per-trial stdout progress, flush/fsync after each
-  trial, STOP-file cancellation, and early-stop invariant checks.
-- Do not block a mission waiting for a long experiment if independent paper,
-  analysis, plotting, or user-study work is available. Record how to resume.
-- Later missions should inspect experiments/*/pid and status files, collect
-  completed results, then summarize them into reproducible tables.
-- While an experiment is running, keep accepting operator guidance and continue
-  independent work. If the user says the design is wrong, cancel via STOP/PID
-  rather than letting the run spend the full budget.
-- If API credentials are already present in the process environment, use them;
-  do not ask the human to paste model keys. If credentials are missing, record a
-  blocked status with the exact env var needed.
-
-Self-architecture rules:
-- The agent may modify its own harness, daemon, reviewer, critic, planner,
-  benchmark, or tool architecture when the current architecture measurably
-  prevents progress on experiments, evidence collection, paper writing, figure
-  generation, or user-study design.
-- Self-architecture changes must be driven by observed bottlenecks (e.g. task
-  execution keeps stalling, reviewer/critic accepts the wrong evidence, long
-  experiments block unrelated work, missing tools prevent paper artifacts).
-  Cosmetic refactors, renames, or generic cleanup are invalid.
-- Every self-architecture mission must include acceptance criteria and run
-  targeted tests or a smoke scenario proving the blocked class of tasks now
-  works. Daemon/runtime code changes only take effect once the operator
-  restarts the daemon at a clean mission boundary — the running process keeps
-  the previously-imported architecture until then. Land the change with passing
-  tests and record that a restart is required; do not assume an automatic
-  handoff will swap in the new code mid-flight.
-
-Planning discipline:
-- Prefer high-impact tasks in this order: fix reward/cost measurement bugs,
-  launch reproducible benchmark runs, analyze failures, design user-study
-  metrics/protocol, generate figures/tables, draft paper sections.
-- A valid planner objective must include acceptance criteria and a command or
-  artifact path that proves completion.
-- Avoid vanity work: renames, comment polish, and generic "improve docs" tasks
-  are invalid unless they directly support the paper or experiment protocol.
-"""
-
-
-_AAAI2026_FORMAT_ADDENDUM = """
-
-AAAI 2026 format rules (override the venue defaults above):
-- Use the official AAAI Press style (aaai2026.sty + aaai2026.bst), two-column,
-  with `\\documentclass[letterpaper]{article}` + `\\usepackage[submission]{aaai2026}`
-  (camera-ready uses `\\usepackage{aaai2026}`), the mandatory `\\pdfinfo` block,
-  and Times font. Do NOT use acl.sty / acl-style-files.
-- Body is 7 pages of technical content; References and the Reproducibility
-  Checklist go on additional, uncounted pages (Conclusion by page 7, References
-  on page 8 or later, no cap after the body).
-- AAAI has no mandatory Limitations or Ethics sections; a Reproducibility
-  Checklist IS required, placed after the References.
-- Never emit `\\bibliographystyle` — aaai2026.sty sets it and a manual command
-  errors. Do not load hyperref or navigator, and never use `\\nocopyright`.
-- The anonymous author block renders as "Anonymous submission" via the
-  `[submission]` option; AAAI has no official abstract word limit.
-"""
-
-
-def _default_aaai2026_profile() -> str:
-    base = (
-        _default_emnlp2026_profile()
-        .replace("EMNLP 2026 TierHarness project", "AAAI 2026 TierHarness project")
-        .replace("Produce an EMNLP 2026 paper", "Produce an AAAI 2026 paper")
-        .replace("even when they mention EMNLP", "even when they mention AAAI")
-    )
-    return base + _AAAI2026_FORMAT_ADDENDUM
 
 
 def _default_nanochat_profile() -> str:
@@ -481,8 +340,6 @@ Planning discipline:
 # Registry mapping a profile name to its built-in prose builder. Unknown names
 # fall back to the generic "use ARGUS_SKILL_RESEARCH_PROFILE_PATH" message.
 _PROFILE_REGISTRY = {
-    _EMNLP2026_PROFILE: _default_emnlp2026_profile,
-    _AAAI2026_PROFILE: _default_aaai2026_profile,
     _NANOCHAT_PROFILE: _default_nanochat_profile,
 }
 

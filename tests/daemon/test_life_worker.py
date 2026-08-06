@@ -1099,7 +1099,7 @@ def test_worker_runtime_context_includes_research_profile(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("ARGUS_SKILL_RESEARCH_PROFILE", "emnlp2026-tierharness")
+    monkeypatch.setenv("ARGUS_SKILL_RESEARCH_PROFILE", "custom-public-profile")
     monkeypatch.delenv("ARGUS_SKILL_RESEARCH_PROFILE_PATH", raising=False)
     cfg = LifeWorkerConfig(
         life_dir=tmp_path,
@@ -1113,7 +1113,7 @@ def test_worker_runtime_context_includes_research_profile(
 
     assert "Runtime info" in context
     assert "Engineer model: gpt-5.4-mini" in context
-    assert "profile_name: emnlp2026-tierharness" in context
+    assert "profile_name: custom-public-profile" in context
     assert "profile_sha256:" not in context
 
 
@@ -1121,7 +1121,7 @@ def test_worker_runtime_context_omits_research_profile_for_bounded_vertical(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("ARGUS_SKILL_RESEARCH_PROFILE", "emnlp2026-tierharness")
+    monkeypatch.setenv("ARGUS_SKILL_RESEARCH_PROFILE", "custom-public-profile")
     monkeypatch.setenv("ARGUS_SKILL_SPECIAL_PROMPTS_DIR", str(tmp_path / "no_special_prompts"))
     cfg = LifeWorkerConfig(life_dir=tmp_path, backend="memory")
 

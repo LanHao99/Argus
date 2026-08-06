@@ -8,7 +8,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "argus_skill" / "release_manifest.json"
 TUI_BUNDLE = ROOT / "frontend" / "tui" / "bundle" / "argus.mjs"
 WEB_INDEX = ROOT / "frontend" / "web" / "dist" / "index.html"

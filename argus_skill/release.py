@@ -42,8 +42,6 @@ def _source_files(root: Path) -> Iterable[Path]:
         "frontend/tui/src/**/*.tsx",
         "frontend/web/src/**/*.ts",
         "frontend/web/src/**/*.tsx",
-        "scripts/generate_event_payload_types.py",
-        "scripts/generate_release_manifest.py",
         "pyproject.toml",
     )
     tracked = _git_tracked_files(root)

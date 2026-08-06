@@ -129,7 +129,7 @@ def test_match_info_diagnostic_still_renders() -> None:
 
 
 def test_engineer_progress_redacts_raw_secret() -> None:
-    secret = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345678901"
+    secret = "ghp_" + "A" * 36
     rendered = format_event_message(
         {
             "type": "engineer.progress",

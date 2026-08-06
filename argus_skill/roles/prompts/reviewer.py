@@ -477,12 +477,8 @@ def render_reviewer_prompt(
         skill_used=active_skill_id,
         prev_review_summary=prev_review_summary,
     )
-    # v12 phase-4: when callers (e.g. harbor_adapter) collect richer
-    # post-round evidence (engineer self-report verbatim, runtime probe,
-    # official verifier output with "ground truth, trust this" framing),
-    # they pass it as ``raw_evidence`` so the reviewer has the strongest
-    # signal grounded in actual container state, not just the engineer's
-    # prose. Empty string → legacy v3 behaviour.
+    # Prefer direct runtime and verifier evidence over the Engineer's summary
+    # when callers provide it. Omit the block when no such evidence exists.
     evidence_block = (
         f"\nRaw verification evidence:\n{raw_evidence.rstrip()}\n" if raw_evidence.strip() else ""
     )
@@ -504,9 +500,8 @@ def render_reviewer_prompt(
             "it. If nothing else can proceed, return `continue` and state what "
             "evidence the next round should wait for.\n"
         )
-    # ``prior_checkpoint`` is accepted only for source compatibility with
-    # older callers. The live handoff is the ordinary Markdown file that the
-    # Engineer already edited and the Reviewer must now edit directly.
+    # The shared Markdown checkpoint is the live handoff. ``prior_checkpoint``
+    # remains accepted for callers that have not migrated to the file path.
     _ = prior_checkpoint
     checkpoint_block = shared_checkpoint_instructions(
         Path(checkpoint_path) if checkpoint_path else None,
@@ -538,11 +533,8 @@ def render_reviewer_prompt(
         measured=_measured,
         compact=not bool((main_error or "").strip()),
     )
-    # Final-submission completion contract. This block replaces the
-    # retired hardcoded EMNLP validators: instead of the supervisor
-    # running ``validate_full_paper_readiness`` and friends, the reviewer
-    # is the single source of truth for whether the *whole project* is
-    # ready to submit. It only fires for final_submission missions.
+    # Final-submission missions ask the Reviewer to judge the whole project,
+    # rather than treating a manuscript-shaped artifact as completion.
     final_submission_block = ""
     if is_final_submission:
         final_submission_block = (

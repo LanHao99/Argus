@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SCAN_ROOTS = (
@@ -9,7 +9,6 @@ SCAN_ROOTS = (
     ROOT / "frontend" / "core" / "src",
     ROOT / "frontend" / "tui" / "src",
     ROOT / "frontend" / "web" / "src",
-    ROOT / "scripts",
     ROOT / "tests",
     ROOT / "pyproject.toml",
     ROOT / "README.md",
@@ -24,13 +23,20 @@ PRIVATE_MARKERS = (
     "dashing-" + "stork",
     "ssh " + "ds",
     "ssh " + "h100",
-    "lbxhaixing154" + "@sjtu.edu.cn",
     "127.0.0.1:" + "2232",
     "local port " + "2210",
     "ssh -p " + "2231",
     "pod/" + "argus-kbench-evalsrv",
     "/tmp/" + "argus-night",
 )
+EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@([A-Z0-9.-]+\.[A-Z]{2,})\b", re.IGNORECASE)
+PUBLIC_EMAIL_DOMAINS = {
+    "argus.invalid",
+    "example.com",
+    "example.invalid",
+    "example.org",
+    "github.com",
+}
 
 
 def _source_files() -> list[Path]:
@@ -55,5 +61,9 @@ def test_public_source_has_no_private_deployment_markers() -> None:
         for marker in PRIVATE_MARKERS:
             if marker in text:
                 failures.append(f"{path.relative_to(ROOT)}: {marker}")
+        for match in EMAIL_PATTERN.finditer(text):
+            domain = match.group(1).lower()
+            if domain not in PUBLIC_EMAIL_DOMAINS:
+                failures.append(f"{path.relative_to(ROOT)}: non-public email domain {domain}")
 
     assert failures == [], "private deployment markers found:\n" + "\n".join(failures)

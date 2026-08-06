@@ -68,18 +68,9 @@ def log_start_record(backend: Any, ctx: "_ExecContext") -> None:
         start_row["prompt_sha256"] = _text_sha256(ctx.prompt)
         backend._log_agent_io(ctx.log_path, start_row)
     else:
-        # The full prompt is a debug artifact, so it belongs in the verbatim
-        # transcript beside the raw stream — not in the authoritative history.
-        # Measured on one project: `agent.io.start` was 63% of events.jsonl's
-        # bytes (47.3 MB of 74.9 MB) purely because it carried the prompt, while
-        # nothing reads that field. The Web UI drops the whole event type,
-        # `usage.py` takes only `call_id` from it, and `event_log.py` only tests
-        # that it exists. The history log paid 3x its own content for a field
-        # with no reader.
-        #
-        # events.jsonl keeps the compact record; the hash still ties it to the
-        # verbatim copy, which lives in agent_io.jsonl where the rest of the raw
-        # transcript is and where the ring rotation bounds it.
+        # Full prompts belong in the bounded raw I/O transcript, not the
+        # authoritative event history. Keep only size and hash in events.jsonl;
+        # agent_io.jsonl retains the verbatim copy under ring rotation.
         compact_row = dict(start_row)
         compact_row["prompt_chars"] = len(ctx.prompt)
         compact_row["prompt_sha256"] = _text_sha256(ctx.prompt)

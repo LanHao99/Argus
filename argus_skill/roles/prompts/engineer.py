@@ -12,10 +12,9 @@ MISSION = "mission"
 OPERATIONS = frozenset({MISSION})
 
 _LONG_EXPERIMENT_RULE = (
-    "Commands expected to run over two minutes must follow "
-    "`docs/LIVE_EXPERIMENT_PROTOCOL.md`: launch the supervised subagent, "
-    "record its run id, and yield or do independent work. Never hold this "
-    "provider turn open with foreground bash, `read_bash`, or polling."
+    "For commands expected to run over two minutes, launch a supervised "
+    "subagent, record its run id, and yield or do independent work. Never hold "
+    "the provider turn open with foreground shell execution or polling."
 )
 
 
@@ -63,10 +62,9 @@ def _post_task_learning_section(
 ) -> str:
     """Render the Engineer's own durable-learning contract.
 
-    The Engineer ends the task holding the full execution context, so it is the
-    cheapest place to retain a reusable procedure. Roles edit the project skill
-    layer directly with their file tools; the legacy ``skill_action`` control
-    channel no longer exists, so the contract must name the directory.
+    The Engineer ends the task with the full execution context, making it the
+    right place to retain a reusable procedure. Roles edit the project Skill
+    layer directly, so the contract names the destination explicitly.
     """
     if not require_post_task_learning or project_skill_dir is None:
         return ""

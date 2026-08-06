@@ -74,7 +74,7 @@ selected venue profile and official author kit.
 | Weak claims, unsupported numbers, evidence gaps, stale artifacts | `argus_builtin_skills/engineer/claims-evidence-audit.md` | source-level claim/result corrections and the smallest missing experiment |
 | Academic tone and model-backed prose critique after evidence is stable | selected venue academic-language review | fresh `ACADEMIC_LANGUAGE_REVIEW.json` and concrete directives |
 | Iterative paper repair after review feedback | `argus_builtin_skills/paper-review-revision-loop.md` | source-level revisions plus review reruns, without hand-editing stale generated outputs |
-| Final paper review | `argus_builtin_skills/research-submission-assurance-gate.md` | independent reading of the current manuscript, PDF, and claim-critical sources |
+| Final paper review | `argus_builtin_skills/engineer/final-paper-review.md` | independent reading of the current manuscript, PDF, and claim-critical sources |
 
 Routing rule: if the blocker is "paper is too short", "format looks fake", "references look bad", or "figure is wrong", first determine whether evidence/full-scale runs/claim support are missing. Missing evidence routes to benchmark execution or analysis before prose/layout polish.
 

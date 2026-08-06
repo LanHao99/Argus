@@ -151,7 +151,7 @@ def test_the_prompt_is_redacted_on_its_way_to_the_raw_transcript(
     from argus_skill.adapters.agent_cli_backend._exec_spawn import log_start_record
     from argus_skill.adapters.agent_cli_backend._io_log import AgentIOLogger
 
-    secret = "sk-proj-AbCd1234EfGh5678IjKl"
+    secret = "-".join(("sk", "proj", "AbCd1234EfGh5678IjKl"))
     history = tmp_path / "events.jsonl"
 
     class _RealLoggingBackend:

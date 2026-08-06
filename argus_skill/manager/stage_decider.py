@@ -303,14 +303,9 @@ def _review_certifies_completion(
 def completion_trigger_reason(action: str, reason: str) -> str:
     """What a `complete` transition should record when it overrode the trigger.
 
-    A hold's reason attached to a `complete` transition is what gets persisted
-    into ``stage_history``. Observed verbatim in a real run on 2026-07-26:
-
-        {"direction": "complete", ..., "reason": "manager held (default)"}
-
-    An operator reading that cannot tell whether the stage completed or was
-    held, which is the one question stage_history exists to answer. When the
-    trigger agreed, its own words are the most informative thing to keep.
+    A completed transition must not retain the reason from an overridden hold;
+    stage history should state why the stage actually closed. When the trigger
+    agreed, its own reason is the most informative value to keep.
     """
     text = str(reason or "").strip()
     if str(action or "").strip().lower() != "hold":
@@ -436,21 +431,9 @@ def _mission_scope_can_complete(mission_scope: str, vertical: str) -> bool:
     complete a paper project: a bounded sub-mission must not end a submission
     just because its own Reviewer said `done`.
 
-    For every other vertical that requirement was unsatisfiable, and it produced
-    a livelock observed in a real session on 2026-07-26. Three rules interlocked:
-    ``_planner_task_tags`` downgrades ``final_submission`` to ``bounded`` for any
-    vertical whose completion gate is not ``full_paper``; ``tick()`` retires a
-    ``final_submission`` item under such a vertical as stale, which is why the
-    downgrade exists; and this function accepted nothing but
-    ``final_submission``. So the Goal Gate mission of twenty of the
-    twenty-three verticals could never close its own gate — the Reviewer
-    certified, the Manager held `not_certified`, and the Planner re-issued the
-    identical task until the operator stopped it.
-
-    The requirement now follows what the vertical declares about itself rather
-    than a transport tag it can never carry. The certification check below is
-    unchanged and still has to pass; this only decides which envelope the
-    verdict may arrive in.
+    Other verticals close through their declared completion gate, not the paper
+    transport scope. The certification check still applies; this function only
+    decides which mission envelope may carry the verdict.
     """
     normalized = (mission_scope or "").strip().lower().replace("-", "_")
     if normalized == "final_submission":

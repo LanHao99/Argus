@@ -182,7 +182,7 @@ export function inspectApiMeta(
   // snapshot schema, and capabilities above remain the compatibility authority;
   // keep drift visible so operators still know to rebuild before release.
   const warning = runtime.release_matches_source === false
-    ? 'backend source differs from its release manifest; rebuild with scripts/build_release.py before release'
+    ? 'backend source differs from its prebuilt release artifacts; pull a complete published revision and reinstall'
     : undefined;
   return { compatible: true, reason: '', warning, meta };
 }

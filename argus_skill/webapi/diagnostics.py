@@ -1,12 +1,9 @@
 """Backend diagnostics for the Web/TUI ``/doctor`` panel.
 
-Answers the one question a stuck user actually has: *why is nothing
-executing my backlog, and what do I type to fix it?* This is the gap a real
-user hit on 2026-06-26 — a bare ``argus-skill`` opened a fresh empty session,
-the daemon auto-spawn failed silently (gpt-5.5 backend 429 / vault preflight),
-and the cockpit gave no path forward.
+Answers the practical question a stuck user has: *why is nothing executing my
+backlog, and what action can restore it?*
 
-The module is a thin,领域无关 diagnostic harness: it reuses the existing
+The module is a small, domain-neutral diagnostic harness: it reuses existing
 status / lock / vault / preflight primitives and reports their state. It makes
 **no** research judgement and **no** network call by default — every check is
 fail-soft (an import error or exception becomes a failed :class:`Check` with a

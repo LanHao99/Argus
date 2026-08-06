@@ -84,7 +84,7 @@ test('protocol contract accepts the current server and rejects missing capabilit
     },
   }));
   assert.equal(driftedSource.compatible, true);
-  assert.match(driftedSource.warning ?? '', /source differs from its release manifest/);
+  assert.match(driftedSource.warning ?? '', /source differs from its prebuilt release artifacts/);
 });
 
 test('local source identity rejects a stale process even when release ids match', () => {
@@ -190,7 +190,7 @@ test('startup probe surfaces source drift without rejecting the backend', async 
   try {
     const probe = await probeApi('127.0.0.1', 8799);
     assert.equal(probe.state, 'compatible');
-    assert.match(probe.warning ?? '', /source differs from its release manifest/);
+    assert.match(probe.warning ?? '', /source differs from its prebuilt release artifacts/);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -321,12 +321,12 @@ test('launcher does not claim a refused daemon upgrade was scheduled', async () 
 test('warning reporter emits each warning only once', () => {
   const warnings: string[] = [];
   const report = uniqueWarningReporter((warning) => warnings.push(warning));
-  report('backend source differs from its release manifest');
-  report('backend source differs from its release manifest');
-  report('  backend source differs from its release manifest  ');
+  report('backend source differs from its prebuilt release artifacts');
+  report('backend source differs from its prebuilt release artifacts');
+  report('  backend source differs from its prebuilt release artifacts  ');
   report('another warning');
   assert.deepEqual(warnings, [
-    'backend source differs from its release manifest',
+    'backend source differs from its prebuilt release artifacts',
     'another warning',
   ]);
 });
@@ -341,14 +341,14 @@ test('ensureApi preserves and emits a compatible source-drift warning', async ()
       probeApi: async () => ({
         state: 'compatible',
         message: 'current release',
-        warning: 'backend source differs from its release manifest',
+        warning: 'backend source differs from its prebuilt release artifacts',
       }),
     },
   });
 
   assert.equal(result.reachable, true);
-  assert.equal(result.warning, 'backend source differs from its release manifest');
-  assert.deepEqual(warnings, ['backend source differs from its release manifest']);
+  assert.equal(result.warning, 'backend source differs from its prebuilt release artifacts');
+  assert.deepEqual(warnings, ['backend source differs from its prebuilt release artifacts']);
 });
 
 // ── Stale-release recovery ──────────────────────────────────────────────────
@@ -751,7 +751,7 @@ test('ApiClient forwards compatible source-drift warnings', async () => {
     await api.listProjects();
 
     assert.deepEqual(warnings, [
-      'backend source differs from its release manifest; rebuild with scripts/build_release.py before release',
+      'backend source differs from its prebuilt release artifacts; pull a complete published revision and reinstall',
     ]);
   } finally {
     globalThis.fetch = originalFetch;

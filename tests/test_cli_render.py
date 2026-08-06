@@ -70,7 +70,7 @@ def test_life_mission_completed_renders_outcome_dimensions() -> None:
 
 
 def test_engineer_progress_terminal_redacts_raw_secret() -> None:
-    secret = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345678901"
+    secret = "ghp_" + "A" * 36
     rendered = render_event_for_terminal(
         {
             "type": "engineer.progress",

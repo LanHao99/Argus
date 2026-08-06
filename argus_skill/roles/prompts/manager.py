@@ -1025,11 +1025,7 @@ def build_stage_decision_prompt(
     continuous_objective: str = "",
 ) -> str:
     """Build the Manager's authoritative stage-transition prompt."""
-    # A bare string is a Sequence[str], so passing one here would render it
-    # character by character as a list of one-letter stages. A live Manager run
-    # on 2026-07-26 caught exactly that in a malformed probe and reasoned about
-    # `(`,`n`,`o`,`n`,`e`,`)` as six rollback targets. Production passes a real
-    # list; this makes the mistake impossible rather than merely unlikely.
+    # Normalize a stray string to one stage instead of iterating over its characters.
     stages = [earlier_stages] if isinstance(earlier_stages, str) else list(earlier_stages)
     earlier = ", ".join(f"`{stage}`" for stage in stages if str(stage).strip()) or (
         "(none — already first)"
