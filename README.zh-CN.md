@@ -1,22 +1,20 @@
 <div align="center">
 
+<img src="docs/assets/argus-mascot.svg" width="110" alt="Argus 多眼哨兵 Agent 吉祥物">
+
 # Argus
 
 **面向科研与工程的持久、可审查自主运行时。**
 
 让长期 Agent 能够规划、执行、验证、暂停，并在一次模型调用之后继续推进。
 
+**当前为 Preview v0.1.1 · 正式开源版正在路上。**
+
 [官方网站](https://argusbot.cn) · [真实运行演示](docs/assets/argus-web-demo.webm?raw=1) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [English](README.md) / **简体中文**
 
 `Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
 
 </div>
-
-<p align="center">
-  <a href="https://argusbot.cn">
-    <img src="docs/assets/argus-homepage.png" width="100%" alt="Argus：永不下班的 AI 研究员">
-  </a>
-</p>
 
 ## 为什么选择 Argus
 
@@ -49,7 +47,7 @@
 </p>
 
 <p align="center">
-  <sub>真实 Web UI 运行回放，点击图片播放完整视频。</sub>
+  <sub>真实 Web UI 运行回放，点击图片播放完整视频 · <a href="https://www.youtube.com/watch?v=i8Qy9HCboQE">观看项目演示</a></sub>
 </p>
 
 ## 快速开始

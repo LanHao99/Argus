@@ -1,22 +1,20 @@
 <div align="center">
 
+<img src="docs/assets/argus-mascot.svg" width="110" alt="Argus multi-eye agent mascot">
+
 # Argus
 
 **Persistent, reviewed autonomy for research and engineering.**
 
 Long-running agent work that can plan, execute, verify, pause, and continue beyond a single model turn.
 
+**Preview v0.1.1 · Official open-source release on the way.**
+
 [Website](https://argusbot.cn) · [Live Demo](docs/assets/argus-web-demo.webm?raw=1) · [Technical Report · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · **English** / [简体中文](README.zh-CN.md)
 
 `Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
 
 </div>
-
-<p align="center">
-  <a href="https://argusbot.cn">
-    <img src="docs/assets/argus-homepage.png" width="100%" alt="Argus: the AI researcher that never clocks out">
-  </a>
-</p>
 
 ## Why Argus
 
@@ -49,7 +47,7 @@ A project can stop, resume, survive a runtime replacement, and continue from its
 </p>
 
 <p align="center">
-  <sub>A real Web UI session. Click the image to play the full recording.</sub>
+  <sub>A real Web UI session. Click the image to play the full recording · <a href="https://www.youtube.com/watch?v=i8Qy9HCboQE">Watch the project demo</a></sub>
 </p>
 
 ## Quick start
