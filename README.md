@@ -1,4 +1,4 @@
-# Argus 
+# Argus
 
 > An autonomous research and engineering runtime for work that takes longer than one model turn.
 
