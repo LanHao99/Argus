@@ -6,12 +6,17 @@
 
 让长期 Agent 能够规划、执行、验证、暂停，并在一次模型调用之后继续推进。
 
-[官方网站](https://argusbot.cn) · [演示视频](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [English](README.md) / **简体中文**
+[官方网站](https://argusbot.cn) · [真实运行演示](docs/assets/argus-web-demo.webm?raw=1) · [技术报告 · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · [English](README.md) / **简体中文**
+
+`Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
 
 </div>
 
-> [!NOTE]
-> **当前为 Preview v0.1.1。** 正式开源版正在路上。
+<p align="center">
+  <a href="https://argusbot.cn">
+    <img src="docs/assets/argus-homepage.png" width="100%" alt="Argus：永不下班的 AI 研究员">
+  </a>
+</p>
 
 ## 为什么选择 Argus
 
@@ -34,6 +39,18 @@
 项目可以停止、恢复、跨运行时替换，并从最近一次已验证位置继续推进。
 
 **原生 Backend：** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode`
+
+## ▶ 看看 Argus 如何工作
+
+<p align="center">
+  <a href="docs/assets/argus-web-demo.webm?raw=1">
+    <img src="docs/assets/argus-web-demo.webp" width="100%" alt="Argus Web UI 真实运行画面，展示 Manager、Planner、Engineer 与 Reviewer 的活动">
+  </a>
+</p>
+
+<p align="center">
+  <sub>真实 Web UI 运行回放，点击图片播放完整视频。</sub>
+</p>
 
 ## 快速开始
 

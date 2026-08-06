@@ -6,12 +6,17 @@
 
 Long-running agent work that can plan, execute, verify, pause, and continue beyond a single model turn.
 
-[Website](https://argusbot.cn) · [Demo](https://www.youtube.com/watch?v=i8Qy9HCboQE) · [Technical Report · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · **English** / [简体中文](README.zh-CN.md)
+[Website](https://argusbot.cn) · [Live Demo](docs/assets/argus-web-demo.webm?raw=1) · [Technical Report · arXiv:2608.05144](https://arxiv.org/pdf/2608.05144) · **English** / [简体中文](README.zh-CN.md)
+
+`Manager` → `Planner` → `Engineer` ⇄ `Reviewer`
 
 </div>
 
-> [!NOTE]
-> **Preview v0.1.1.** The official open-source release is on the way.
+<p align="center">
+  <a href="https://argusbot.cn">
+    <img src="docs/assets/argus-homepage.png" width="100%" alt="Argus: the AI researcher that never clocks out">
+  </a>
+</p>
 
 ## Why Argus
 
@@ -34,6 +39,18 @@ Most agents are optimized for one conversation or one coding turn. Argus is buil
 A project can stop, resume, survive a runtime replacement, and continue from its latest verified position.
 
 **Native backends:** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode`
+
+## ▶ See Argus run
+
+<p align="center">
+  <a href="docs/assets/argus-web-demo.webm?raw=1">
+    <img src="docs/assets/argus-web-demo.webp" width="100%" alt="A real Argus Web UI session with Manager, Planner, Engineer, and Reviewer activity">
+  </a>
+</p>
+
+<p align="center">
+  <sub>A real Web UI session. Click the image to play the full recording.</sub>
+</p>
 
 ## Quick start
 
