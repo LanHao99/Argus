@@ -789,19 +789,19 @@ test('live activity stays concise and the detail pane never prints raw prompts',
   const live = await renderNode(React.createElement(LiveActivity, { events, width: 120, background: true }), 120);
   assert.match(live, /searching recent papers/);
   assert.match(live, /Background/);
-  assert.match(live, /Ctrl\+O details/);
+  assert.doesNotMatch(live, /Ctrl\+O/);
   const pane = await renderNode(React.createElement(ActivityPane, { events }), 120);
   assert.match(pane, /observable actions only/);
   assert.doesNotMatch(pane, /DO NOT SHOW/);
 });
 
-test('footer keeps backend and model details out of the main hierarchy', async () => {
+test('footer exposes only stable cockpit controls', async () => {
   const output = await renderNode(
     React.createElement(Footer, { notice: '', width: 160 }),
     160,
   );
-  assert.match(output, /Ctrl\+O operations/);
-  assert.doesNotMatch(output, /Copilot|gpt-|pid/);
+  assert.match(output, /Enter send/);
+  assert.doesNotMatch(output, /Ctrl\+O|Ctrl\+T|Copilot|gpt-|pid/);
 });
 
 test('searchable event and full task panels stay useful at 60 columns', async () => {

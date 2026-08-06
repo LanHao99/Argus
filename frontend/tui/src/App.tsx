@@ -132,7 +132,7 @@ export function App({
     ),
   );
   const [pendingExit, setPendingExit] = useState(false);
-  const [showReasoning, setShowReasoning] = useState(resolveShowReasoning);
+  const [showReasoning] = useState(resolveShowReasoning);
 
   useEffect(() => {
     setMenuSel(0);
@@ -482,17 +482,6 @@ export function App({
     }
     if (key.ctrl && input === 'd') {
       quit();
-      return;
-    }
-    if (key.ctrl && input === 'o') {
-      setPanel((current) => current?.kind === 'operations' ? null : { kind: 'operations' });
-      return;
-    }
-    if (key.ctrl && input === 't') {
-      setShowReasoning((current) => {
-        setNotice(`reasoning ${current ? 'hidden' : 'shown'}`);
-        return !current;
-      });
       return;
     }
     if (key.ctrl && input === 'r') {
