@@ -14,13 +14,14 @@ import { Splash } from './components/Splash.js';
 import { Wordmark } from './components/Wordmark.js';
 import {
   ensureApi,
+  resolveBin,
   scheduleOutdatedDaemonUpgrades,
   uniqueWarningReporter,
 } from './ensureApi.js';
 import { SPINNER, theme } from './theme.js';
 import { initialProjectSelection, interactiveStartup } from './initialProject.js';
 import { projectsForLaunchCwd } from '../../core/src/projects.js';
-import { openWebBrowser, webUiUrl } from './webLaunch.js';
+import { openWebBrowser, resolvePairing, webUiUrl, withProject } from './webLaunch.js';
 import { createImeCursorOutput, ImeCursorProvider } from './imeCursor.js';
 
 /** A small spinner shown if the animation finishes before the API is reachable. */
@@ -212,10 +213,14 @@ async function main() {
   }
 
   if (args.web) {
+    // Resolve pairing before starting the backend: on a non-loopback bind the
+    // token may be minted here, and the backend has to be started with it.
+    const plan = resolvePairing(resolveBin(), args.host, args.port);
+    const token = args.token || plan?.token || undefined;
     const result = await ensureApi({
       host: args.host,
       port: args.port,
-      token: args.token,
+      token,
       ownerFile: args.ownerFile,
       onStatus: (status) => process.stderr.write(`${status}\n`),
       onWarning: (warning) => process.stderr.write(`argus: warning: ${warning}\n`),
@@ -225,9 +230,14 @@ async function main() {
       process.exitCode = 2;
       return;
     }
-    const url = webUiUrl(args.host, args.port, args.project);
+    const url = plan
+      ? withProject(plan.url, args.project)
+      : webUiUrl(args.host, args.port, args.project, token);
     const opened = !args.noOpen && openWebBrowser(url);
-    process.stdout.write(`${opened ? 'Opened' : 'Argus Web UI'}: ${url}\n`);
+    // A bind other devices can reach gets the full banner — reachable address,
+    // token, and a QR code to scan from a phone.
+    if (plan?.pairing && plan.banner) process.stdout.write(`${plan.banner}\n`);
+    else process.stdout.write(`${opened ? 'Opened' : 'Argus Web UI'}: ${url}\n`);
     if (!opened && !args.noOpen) {
       process.stdout.write('No desktop browser detected; open the URL locally or forward this port over SSH.\n');
     }

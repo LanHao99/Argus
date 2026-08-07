@@ -134,23 +134,46 @@ Then open [http://127.0.0.1:8799](http://127.0.0.1:8799) locally.
 <details>
 <summary><strong>Direct LAN access</strong></summary>
 
-Direct LAN access must be protected by a bearer token:
+A non-loopback bind is always protected by a bearer token. If
+`ARGUS_SKILL_WEB_TOKEN` is set it is used; otherwise one is minted for that run:
 
 ```bash
-export ARGUS_SKILL_WEB_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-printf '%s\n' "$ARGUS_SKILL_WEB_TOKEN"
 argus --web --host 0.0.0.0 --port 8799 --no-open
 ```
 
-Open the URL below from another machine, replacing the host and token:
+This prints the address other devices can reach, the token, and a QR code.
+Set the token yourself to keep one across restarts:
 
-```text
-http://SERVER_IP:8799/?token=YOUR_TOKEN
+```bash
+export ARGUS_SKILL_WEB_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 ```
 
-Never expose `0.0.0.0` without `ARGUS_SKILL_WEB_TOKEN`.
+To serve without a token — only behind your own authenticating proxy — set
+`ARGUS_SKILL_WEB_ALLOW_INSECURE=1`.
 
 </details>
+
+### From a phone
+
+Telegram, Feishu/Lark, and the web UI all work from a phone. The two chat bots
+dial out, so a daemon behind NAT needs no tunnel and no public URL:
+
+```bash
+# Feishu / Lark — WebSocket long connection, no request URL to configure
+pip install 'argus-skill[feishu]'
+export ARGUS_SKILL_ENABLE_FEISHU=1
+export ARGUS_SKILL_FEISHU_APP_ID=cli_xxx ARGUS_SKILL_FEISHU_APP_SECRET=xxx
+
+# Telegram
+export ARGUS_SKILL_ENABLE_TELEGRAM=1
+export ARGUS_SKILL_TELEGRAM_BOT_TOKEN=... ARGUS_SKILL_TELEGRAM_CHAT_ID=...
+```
+
+Both bots serve the same commands (`/add`, `/status`, `/nudge`, `/backlog`, …).
+The web UI is installable to the home screen and pairs by scanning the QR code
+printed by `argus --web --host 0.0.0.0`.
+
+See **[docs/mobile.md](docs/mobile.md)** for the full setup.
 
 ## Advanced usage
 

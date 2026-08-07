@@ -161,6 +161,12 @@ KNOBS: tuple[Knob, ...] = (
     Knob("ARGUS_SKILL_ENABLE_TELEGRAM", "off", "enable the Telegram inbound/outbound bridge", "telemetry", cockpit=True),
     Knob("ARGUS_SKILL_TELEGRAM_BOT_TOKEN", "(unset)", "Telegram bot token", "telemetry"),
     Knob("ARGUS_SKILL_TELEGRAM_CHAT_ID", "(unset)", "Telegram chat id to notify", "telemetry"),
+    Knob("ARGUS_SKILL_ENABLE_FEISHU", "off", "enable the Feishu/Lark bridge (WebSocket long connection; no public URL needed)", "telemetry", cockpit=True),
+    Knob("ARGUS_SKILL_FEISHU_APP_ID", "(unset)", "Feishu app id (cli_...)", "telemetry"),
+    Knob("ARGUS_SKILL_FEISHU_APP_SECRET", "(unset)", "Feishu app secret", "telemetry"),
+    Knob("ARGUS_SKILL_FEISHU_CHAT_ID", "(unset)", "Feishu chat id to notify", "telemetry"),
+    Knob("ARGUS_SKILL_FEISHU_ALLOWED_USERS", "(unset)", "comma-separated Feishu open_ids allowed to drive the daemon; unset allows everyone the bot can see", "telemetry"),
+    Knob("ARGUS_SKILL_FEISHU_DOMAIN", "feishu", "Feishu open-platform host: 'feishu' (mainland), 'lark' (international), or a full URL", "telemetry"),
     Knob("ARGUS_SKILL_SHOW_REASONING", "0", "stream the agent's reasoning to the cockpit", "telemetry", cockpit=True),
 )
 
@@ -202,6 +208,7 @@ _TOGGLE_KNOBS = frozenset(
         "ARGUS_SKILL_SAFE_MODE",
         "ARGUS_SKILL_SHOW_REASONING",
         "ARGUS_SKILL_ENABLE_TELEGRAM",
+        "ARGUS_SKILL_ENABLE_FEISHU",
     }
 )
 _NON_NEGATIVE_INT_KNOBS = frozenset(

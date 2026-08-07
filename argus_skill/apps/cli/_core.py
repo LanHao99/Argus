@@ -410,6 +410,35 @@ def main(argv: list[str] | None = None) -> int:
         return _run_with_path_resolution_errors(lambda: _cmd_watch(args))
     if args.follow:
         return _run_with_path_resolution_errors(lambda: _cmd_follow(args))
+    if getattr(args, "pair_plan", False):
+        # Internal bridge for the Ink cockpit. It spawns the backend detached
+        # with stdio discarded, so it cannot see the banner the child prints;
+        # it asks for the plan here instead, passes the token down to the
+        # child, and prints the banner itself. Keeps token minting, URL
+        # construction, and QR rendering in one implementation.
+        import json as _json
+
+        from ...webapi.pairing import is_loopback_host, pairing_plan
+
+        pair_host = str(getattr(args, "web_host", "127.0.0.1") or "127.0.0.1")
+        plan = pairing_plan(
+            pair_host,
+            int(getattr(args, "web_port", 8799) or 8799),
+        )
+        sys.stdout.write(
+            _json.dumps(
+                {
+                    "token": plan.token,
+                    "url": plan.url,
+                    "banner": plan.banner,
+                    # The cockpit prints its own one-line URL for a loopback
+                    # bind; the full banner is only worth showing when a phone
+                    # actually has to pair.
+                    "pairing": not is_loopback_host(pair_host),
+                }
+            )
+        )
+        return 0
     if getattr(args, "web", False):
         entry_error = _lifetime_entry_error(args)
         if entry_error:
@@ -423,9 +452,21 @@ def main(argv: list[str] | None = None) -> int:
                 "`pip install 'argus-skill[web]'` (fastapi + uvicorn).\n"
             )
             return 2
+        from ...webapi.pairing import pairing_plan
+
+        host = str(getattr(args, "web_host", "127.0.0.1") or "127.0.0.1")
+        port = int(getattr(args, "web_port", 8799) or 8799)
+        # A LAN bind is authenticated by default: without a configured token
+        # one is minted for this run rather than serving the daemon's control
+        # surface in the clear. Prints the pairing URL and QR code.
+        plan = pairing_plan(host, port)
+        if plan.banner:
+            sys.stderr.write(f"{plan.banner}\n")
+            sys.stderr.flush()
         return serve_web(
-            host=str(getattr(args, "web_host", "127.0.0.1") or "127.0.0.1"),
-            port=int(getattr(args, "web_port", 8799) or 8799),
+            host=host,
+            port=port,
+            auth_token=plan.token or None,
         )
     if args.notify:
         return _run_with_path_resolution_errors(lambda: _cmd_notify(args))

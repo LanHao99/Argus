@@ -451,6 +451,102 @@ body {
   }
 }
 
+/* ── Mobile ───────────────────────────────────────────────────────────────
+ * The shell paints edge to edge (viewport-fit=cover), so anything anchored to
+ * an edge has to add the corresponding safe-area inset itself or it ends up
+ * under the notch, the home indicator, or the rounded corners. */
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  /* Height of the mobile tab bar, including its own bottom inset. Panels above
+   * it reserve this much room so the last row is never covered. */
+  --mobile-tabbar-height: calc(3.25rem + var(--safe-bottom));
+  /* How much the on-screen keyboard currently covers, published by
+   * useVisualViewport. Zero on desktop and whenever the keyboard is closed. */
+  --keyboard-inset: 0px;
+}
+
+.safe-inset-x {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+.safe-inset-top {
+  padding-top: var(--safe-top);
+}
+
+.safe-inset-bottom {
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Coarse pointers get real touch targets. The workbench chrome is drawn at
+ * 32px, which is fine for a mouse and too small for a thumb — Apple's HIG and
+ * Material both land at 44–48px. The visual size is left alone; the tappable
+ * area is grown with a pseudo-element so nothing reflows. */
+@media (pointer: coarse) {
+  .icon-control,
+  .compact-control,
+  .workspace-tab {
+    position: relative;
+  }
+
+  .icon-control::after,
+  .compact-control::after,
+  .workspace-tab::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Below the desktop breakpoint the tab bar owns the bottom edge, so any panel
+ * that reaches it reserves the bar's height. */
+@media (max-width: 1023px) {
+  .mobile-scroll-region {
+    padding-bottom: calc(var(--mobile-tabbar-height) + 0.5rem);
+  }
+}
+
+/* The bar rides above the software keyboard rather than sitting behind it. */
+.mobile-tabbar {
+  bottom: var(--keyboard-inset);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  transition: bottom 120ms ease-out;
+}
+
+/* The composer is the one control that must stay visible while typing. iOS
+ * Safari does not resize the layout viewport when the keyboard opens, so
+ * `100dvh` alone still leaves the input covered; `--keyboard-inset` (published
+ * by useVisualViewport) is what actually lifts it. On phones it additionally
+ * clears the tab bar. Single declaration per breakpoint — two classes both
+ * setting padding-bottom would be decided by stylesheet order. */
+.composer-dock {
+  padding-bottom: var(--keyboard-inset);
+  transition: padding-bottom 120ms ease-out;
+}
+
+@media (max-width: 1023px) {
+  .composer-dock {
+    padding-bottom: calc(var(--mobile-tabbar-height) + var(--keyboard-inset) + 0.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-dock,
+  .mobile-tabbar {
+    transition: none;
+  }
+}
+
 @keyframes argus-web-splash-exit {
   0%, 25% { opacity: 1; }
   100% { opacity: 0; }

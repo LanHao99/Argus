@@ -30,6 +30,8 @@ import { faAnglesLeft } from '@fortawesome/free-solid-svg-icons';
 import { MissionControl } from './components/MissionControl';
 import { OperationsModal } from './components/OperationsModal';
 import { Landing } from './components/Landing';
+import { MobileTabBar } from './components/MobileTabBar';
+import { useVisualViewport } from './useVisualViewport';
 import { activeGuardianAlert } from './lib/guardian';
 import { projectMissionView } from '../../core/src/missionView';
 import { useQueryClient } from '@tanstack/react-query';
@@ -99,6 +101,8 @@ export default function App() {
     themeMode,
     workspaceView,
   } = useWorkbenchLayout();
+  // Publishes --keyboard-inset so the composer clears the software keyboard.
+  useVisualViewport();
   const [composerFocus, setComposerFocus] = useState(0);
   const [composerDraft, setComposerDraft] = useState('');
   const [rewriting, setRewriting] = useState(false);
@@ -647,9 +651,6 @@ export default function App() {
                 onStart={requestStartDaemon}
                 onStop={requestStopDaemon}
                 onManage={() => setDaemonManageOpen(true)}
-                onOpenSessions={() => setSidebarOpen(true)}
-                mobileView={mobileView}
-                onToggleMobileView={() => setMobileView('preview')}
                 busy={daemonBusy}
                 snapshotStale={snapQ.isError}
                 readOnly={kiosk}
@@ -680,7 +681,7 @@ export default function App() {
                 />
               )}
               {!kiosk ? (
-                <div className="shrink-0 px-4 pb-6 pt-3">
+                <div className="composer-dock shrink-0 px-4 pb-6 pt-3">
                   <div className="mx-auto w-full max-w-full lg:max-w-[61.8vw]">
                   <PendingBanner
                     questions={snap.pending_questions ?? []}
@@ -734,9 +735,6 @@ export default function App() {
                   onStart={requestStartDaemon}
                   onStop={requestStopDaemon}
                   onManage={() => setDaemonManageOpen(true)}
-                  onOpenSessions={() => setSidebarOpen(true)}
-                  mobileView={mobileView}
-                  onToggleMobileView={() => setMobileView('activity')}
                   busy={daemonBusy}
                   snapshotStale={snapQ.isError}
                   readOnly={kiosk}
@@ -748,7 +746,7 @@ export default function App() {
                 artifacts={artifactsQ.data}
                 error={artifactsQ.isError}
                 onExpand={setArtifactPath}
-                className={`min-h-0 flex-1 ${rightPanelOpen ? 'lg:flex' : 'lg:hidden'}`}
+                className={`min-h-0 flex-1 mobile-scroll-region ${rightPanelOpen ? 'lg:flex' : 'lg:hidden'}`}
                 embedded
                 onCollapse={() => setRightPanelOpen(false)}
                 missionView={missionView}
@@ -860,6 +858,20 @@ export default function App() {
         />
       ) : null}
       <ActionNotice notice={notice} onClose={dismissNotice} />
+      {snap && !kiosk ? (
+        <MobileTabBar
+          active={mobileView === 'preview' ? 'preview' : workspaceView}
+          onSelect={(tab) => {
+            if (tab === 'preview') {
+              setMobileView('preview');
+              return;
+            }
+            setMobileView('activity');
+            setWorkspaceView(tab);
+          }}
+          onOpenSessions={() => setSidebarOpen(true)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -69,6 +69,17 @@ signing = [
 zh-fold = [
   "opencc>=1.1",
 ]
+# Feishu / Lark chat bridge. Only the inbound WebSocket long connection needs
+# the SDK — outbound replies go through urllib like the Telegram bridge — so
+# this stays optional and the bridge simply lies dormant when it is absent.
+feishu = [
+  "lark-oapi>=1.5,<2",
+]
+# Terminal QR code for pairing a phone with a LAN-exposed web UI. Degrades to
+# printing the URL alone when unavailable.
+qr = [
+  "qrcode>=7.4,<9",
+]
 dev = [
   "build>=1",
   "mypy>=1.8,<2",

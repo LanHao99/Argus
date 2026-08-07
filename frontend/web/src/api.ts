@@ -141,9 +141,37 @@ export interface MetricsSnapshot {
   [key: string]: unknown;
 }
 
+const TOKEN_KEY = 'argus_web_token';
+
+/** Persist a token handed over in the URL, then drop it from the address bar.
+ *
+ * Pairing puts the token in a QR code, so the first load carries `?token=...`.
+ * Without this the token would live only as long as that query string: a
+ * reload, or launching the installed PWA from its `start_url`, would land
+ * unauthenticated. Clearing the query afterwards keeps the credential out of
+ * the address bar, screenshots, and the back/forward history entry. */
+export function adoptTokenFromUrl(): void {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get('token');
+    if (!fromUrl) return;
+    localStorage.setItem(TOKEN_KEY, fromUrl);
+    params.delete('token');
+    const query = params.toString();
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`,
+    );
+  } catch {
+    // Private-mode storage failures shouldn't stop the app from loading; the
+    // in-URL token still authenticates this session.
+  }
+}
+
 const token = (): string | null =>
   new URLSearchParams(window.location.search).get('token') ||
-  localStorage.getItem('argus_web_token');
+  localStorage.getItem(TOKEN_KEY);
 
 function authHeaders(): Record<string, string> {
   const t = token();

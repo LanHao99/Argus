@@ -134,23 +134,40 @@ ssh -L 8799:127.0.0.1:8799 user@server
 <details>
 <summary><strong>直接通过局域网访问</strong></summary>
 
-直接访问局域网时，必须使用 Bearer Token 保护服务：
+非本机监听始终受 Bearer Token 保护：设置了 `ARGUS_SKILL_WEB_TOKEN` 就用它，没设置则为本次运行自动生成一个。
 
 ```bash
-export ARGUS_SKILL_WEB_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-printf '%s\n' "$ARGUS_SKILL_WEB_TOKEN"
 argus --web --host 0.0.0.0 --port 8799 --no-open
 ```
 
-从其他设备打开下面的地址，并替换服务器 IP 与 Token：
+命令会打印其他设备可达的地址、Token，以及一个二维码。想让 Token 在重启后保持不变，自己设置即可：
 
-```text
-http://SERVER_IP:8799/?token=YOUR_TOKEN
+```bash
+export ARGUS_SKILL_WEB_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 ```
 
-禁止在未设置 `ARGUS_SKILL_WEB_TOKEN` 时将服务暴露到 `0.0.0.0`。
+如果确实要在没有 Token 的情况下提供服务（仅在你自己有鉴权代理的前提下），设置 `ARGUS_SKILL_WEB_ALLOW_INSECURE=1`。
 
 </details>
+
+### 在手机上使用
+
+Telegram、飞书 / Lark 和网页版都可以在手机上使用。两个聊天机器人都是**向外拨号**的长连接，所以位于 NAT 后面的守护进程不需要内网穿透，也不需要公网地址：
+
+```bash
+# 飞书 / Lark —— WebSocket 长连接，无需配置请求地址
+pip install 'argus-skill[feishu]'
+export ARGUS_SKILL_ENABLE_FEISHU=1
+export ARGUS_SKILL_FEISHU_APP_ID=cli_xxx ARGUS_SKILL_FEISHU_APP_SECRET=xxx
+
+# Telegram
+export ARGUS_SKILL_ENABLE_TELEGRAM=1
+export ARGUS_SKILL_TELEGRAM_BOT_TOKEN=... ARGUS_SKILL_TELEGRAM_CHAT_ID=...
+```
+
+两个机器人提供完全相同的命令（`/add`、`/status`、`/nudge`、`/backlog` 等）。网页版可以添加到手机主屏幕，扫描 `argus --web --host 0.0.0.0` 打印的二维码即可完成配对。
+
+完整配置见 **[docs/mobile.md](docs/mobile.md)**。
 
 ## 高级使用
 

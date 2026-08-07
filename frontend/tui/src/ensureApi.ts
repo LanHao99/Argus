@@ -30,7 +30,7 @@ import {
  * to bare `argus-skill` on PATH.
  */
 
-function resolveBin(): string {
+export function resolveBin(): string {
   if (process.env.ARGUS_SKILL_BIN) return process.env.ARGUS_SKILL_BIN;
   // this file lives at <repo>/frontend/tui/{src|dist}/ensureApi — the repo venv
   // is three levels up.
@@ -167,6 +167,17 @@ function compatibleResult(
     message: `${prefix} · ${probe.message}`,
     warning: probe.warning,
   };
+}
+
+/** Environment for a backend we start ourselves.
+ *
+ * The backend has to accept the very token we are going to probe and pair
+ * with. On a non-loopback bind that token may have been minted for this run,
+ * so it exists nowhere else — passing it down is what keeps the spawned API
+ * reachable instead of answering 401 to its own cockpit. */
+function spawnEnv(token?: string): NodeJS.ProcessEnv {
+  if (!token?.trim()) return process.env;
+  return { ...process.env, ARGUS_SKILL_WEB_TOKEN: token.trim() };
 }
 
 export async function ensureApi(opts: {
@@ -342,6 +353,7 @@ export async function ensureApi(opts: {
         detached: true,
         stdio: 'ignore',
         windowsHide: true,
+        env: spawnEnv(token),
       });
       child.unref();
       return { pid: child.pid! };
@@ -416,6 +428,7 @@ export async function ensureApi(opts: {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
+      env: spawnEnv(token),
     });
     child.unref();
     return { pid: child.pid! };

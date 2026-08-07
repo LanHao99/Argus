@@ -138,6 +138,9 @@ _HIGH_CONFIDENCE_ARTIFACT_RECORD_KEYS = {
     "set_cookie",
     "slack_token",
     "telegram_token",
+    "app_secret",
+    "appsecret",
+    "feishu_app_secret",
     "x_api_key",
 }
 _IGNORE_DIRS = {

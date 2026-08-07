@@ -199,6 +199,24 @@ class LifeWorkerRunMixin:
         except Exception:  # noqa: BLE001
             log.exception("daemon: failed to start telegram poller; continuing")
 
+        # Same contract for Feishu/Lark: opt-in, and a failure here must never
+        # take down a daemon that is otherwise healthy.
+        try:
+            from ..life.feishu_bot import feishu_enabled
+
+            if feishu_enabled():
+                from ..life.feishu_bot import FeishuPoller
+
+                fs_poller = FeishuPoller(
+                    life_dir=rf_state.runtime_root,
+                    stop_event=self._stop,
+                )
+                fs_poller.start()
+            else:
+                log.info("feishu bridge disabled")
+        except Exception:  # noqa: BLE001
+            log.exception("daemon: failed to start feishu bridge; continuing")
+
         # Start the resident Curator: it keeps each active team campaign's pool
         # in flight and is the single reaper (the lead drops .argus/team campaign
         # markers under project_workdir, which the Curator watches). Stopped in

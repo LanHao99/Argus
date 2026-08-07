@@ -234,8 +234,16 @@ def build_parser() -> argparse.ArgumentParser:
     cockpit_grp.add_argument(
         "--web-host",
         default="127.0.0.1",
-        help="bind host for --web (default 127.0.0.1; use 0.0.0.0 to expose on "
-             "the LAN — only with ARGUS_SKILL_WEB_TOKEN set)",
+        help="bind host for --web (default 127.0.0.1; use 0.0.0.0 to reach it "
+             "from a phone on the same network). A non-loopback bind always "
+             "requires a bearer token: ARGUS_SKILL_WEB_TOKEN when set, "
+             "otherwise one minted for the run and printed as a scannable QR "
+             "code. ARGUS_SKILL_WEB_ALLOW_INSECURE=1 opts out.",
+    )
+    cockpit_grp.add_argument(
+        "--pair-plan",
+        action="store_true",
+        help=argparse.SUPPRESS,
     )
     cockpit_grp.add_argument(
         "--web-port",
