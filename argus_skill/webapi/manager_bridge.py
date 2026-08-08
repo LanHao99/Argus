@@ -90,6 +90,7 @@ def manager_message(
     text: str,
     *,
     global_root: Path | str | None = None,
+    attachments: list[dict[str, Any]] | None = None,
     on_fragment: Any = None,
     cancelled: Any = None,
     source_channel: str = "web",
@@ -119,10 +120,13 @@ def manager_message(
     from ..core.transcript import append_turn
     from ..life.memory import MemoryBundle
     from ..manager.front_door import mission_is_running
+    from .attachments import attachment_context_refs, compose_message_body
 
-    body = (text or "").strip()
+    resolved_attachments = list(attachments or [])
+    body = compose_message_body(text, resolved_attachments).strip()
     if not body:
         return {"kind": "error", "reply": "empty message"}
+    message_attachment_refs = attachment_context_refs(resolved_attachments)
 
     def _cancelled() -> bool:
         if not callable(cancelled):
@@ -328,7 +332,13 @@ def manager_message(
             return _cancelled_result()
         try:
             item, daemon_alive, daemon_pid = _dispatch_team_mission(
-                mem, body, chat_state, root_task_id, _cancelled, emitter
+                mem,
+                body,
+                chat_state,
+                root_task_id,
+                _cancelled,
+                emitter,
+                attachment_context_refs=message_attachment_refs,
             )
         except Exception as exc:  # noqa: BLE001
             if _cancelled():
