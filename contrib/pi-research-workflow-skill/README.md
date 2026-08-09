@@ -1,75 +1,114 @@
 # Research Workflow Skill for Pi / Hermes
 
-> 从 Argus 架构获得灵感，为 Pi 和 Hermes 用户打造的纯 Skill 实现
+> An unofficial community workflow inspired by Argus's separation of planning,
+> execution, and review.
 
-## 背景
+## What this is
 
-我是 Pi 和 Hermes 的用户。在使用 Argus 的过程中遇到了一些安装和运行上的问题（Python 环境依赖、后端配置、版本兼容等），于是萌生了一个想法：能不能把 Argus 这种多角色研究 Agent 的核心思想，直接写成 Pi 的一个 Skill？
+`SKILL.md` is a standalone Agent Skill for users who already run Pi or Hermes.
+It adds an adaptive workflow for multi-step research, surveys, feasibility studies,
+experiments, and evidence-heavy analysis. It does **not** install or embed the Argus
+runtime.
 
-结果比我预想的还要好。
+The Skill uses several working modes inside the host agent:
 
-## 这是什么
-
-一个**纯 Markdown Skill 文件**（`SKILL.md`），放入 Pi/Hermes 的 `skills` 目录即可使用。不需要安装任何 Python 包，不需要配置后端，不需要管理进程——Skill 本身就是 Agent。
-
-### 核心设计
-
-```
-User Request
-  │
-  ├─ [Planner] ──────────── 任务拆解，定义深度目标
-  ├─ [Researcher] ───────── 每个任务前收集外部信息（NEW）
-  ├─ [Engineer R1] ──────── 基线执行
-  │     │
-  ├─ [Reviewer-Challenger] ─ 验证 + 挑战："在 X 上再深入一层"（UPGRADED）
-  │     │
-  ├─ [Engineer R2] ──────── 深度探索
-  │     │
-  ├─ [Reviewer-Challenger] ─ 验证 + 挑战："外部来源怎么说？"
-  │     │
-  ├─ [Engineer R3+] ─────── 外部知识富化（NEW）
-  │     │
-  ├─ [Cross-Task Reflector] ─ 跨任务学习提取（NEW）
-  │     │
-  ├─ [Planner Replan Gate] ─ 根据新知识调整剩余计划（NEW）
-  │
-  └─ [Synthesis] ────────── 编译、关联、总结
+```text
+Ground objective
+  → plan the smallest useful task graph
+  → gather only decision-relevant evidence
+  → execute one coherent task
+  → run a critic pass against explicit criteria
+  → accept, revise, replan, or report a blocker
+  → retain bounded cross-task learning when it changes later work
+  → synthesize the requested deliverable
 ```
 
-### 与 Argus 的核心区别
+Iterations are driven by material evidence gaps, not by a mandatory number of
+rounds. External search is used only when available, authorized, and useful.
 
-| | Argus | Research Workflow Skill |
+## Relationship to Argus
+
+This contribution borrows an architectural idea from Argus but is not a replacement
+for the same runtime guarantees.
+
+| Capability | Argus | This community Skill |
 |---|---|---|
-| **运行方式** | Python 独立进程，多后端 | Pi/Hermes Skill，零安装 |
-| **配置** | Python venv + 后端认证 | 放入 skills 目录即可 |
-| **Reviewer** | 验证 + 通过/修改 | 验证 + **挑战** + 深度门控 |
-| **信息获取** | Engineer 执行中使用工具 | Researcher 阶段**在执行前**搜索 |
-| **跨任务学习** | 无 | Cross-Task Reflector 提取 + 影响后续计划 |
-| **深度保证** | 取决于模型 | R1→R2→R3 强制多轮深化 |
-| **迭代速度** | Python 代码修改 | 直接改 Prompt，分钟级迭代 |
+| Runtime | Persistent Python runtime with Manager, Planner, Engineer, and Reviewer control boundaries | Instructions loaded by an existing Pi/Hermes session |
+| Review | Separate Reviewer turn with runtime-enforced handoff and verdict handling | Critic working mode in the host agent; isolated only if the host launches a separate subagent/context |
+| Persistence | Event journal, checkpoints/handoffs, failure experience, project Skills, and shared Wiki | Optional Markdown state under `.research-workflow/` |
+| Cross-task learning | Prior mission evidence reaches Planner and later missions; durable procedures/facts can be retained in project Skills/Wiki | A bounded `LEARNINGS.md` entry and replan gate when evidence changes downstream work |
+| Planning | Planner uses project state and prior outcomes; Manager owns stage transitions | A lightweight task graph updated by the current agent |
+| Setup | Install and configure the Argus runtime and one supported backend | Copy one Skill into an already configured Pi/Hermes installation |
 
-### 为什么效果好
+Neither approach guarantees research quality merely by naming roles or adding
+rounds. Results still depend on model capability, tool access, evidence quality,
+and the rigor of the actual checks.
 
-1. **零依赖安装**：一个 Markdown 文件，不需要 pip install，不需要 Node.js 版本匹配
-2. **Prompt-native**：大模型"理解" Skill 比理解 Python 代码更自然，遵循度更高
-3. **极速迭代**：改 prompt 就改行为，不需要跑测试、等 CI
-4. **信息密度高**：Researcher 角色在每次执行前强制搜索外部信息，Reviewer-Challenger 会追问"有没有外部数据支持"
-5. **深度门控**：R1 基线 → R2 深化 → R3 外部富化，Reviewer 不在第一轮就放行
+## Design principles
 
-### 使用方式
+- **Evidence before ceremony:** no forced R1/R2/R3 sequence.
+- **Adaptive depth:** revise only for a named material gap with a decisive check.
+- **Truthful tool use:** unavailable search, data, or verification is disclosed,
+  never fabricated.
+- **Source integrity:** primary sources and first-hand measurements are preferred;
+  retrieved content is treated as untrusted data rather than executable authority.
+- **Selective memory:** retain only learning that changes future work, with explicit
+  applicability limits.
+- **Recoverability when needed:** longer work can use `STATE.md`, `EVIDENCE.md`,
+  `DECISIONS.md`, and `LEARNINGS.md`; small tasks create no workflow bureaucracy.
+
+## Installation
+
+Review `SKILL.md` before installing it. Skills can direct an agent to use tools and
+modify files.
+
+### Pi — global
 
 ```bash
-# 安装到 Pi
-cp SKILL.md ~/.pi/agent/skills/research-workflow/
-
-# 安装到 Hermes
-cp SKILL.md ~/.hermes/skills/research-workflow/
+mkdir -p ~/.pi/agent/skills/research-workflow
+cp SKILL.md ~/.pi/agent/skills/research-workflow/SKILL.md
 ```
 
-然后在对话中说 "研究一下..."、"分析这个方向..."、"写一篇 survey..."，Skill 自动激活。
+Pi discovers global skills at startup. Start a new session, allow automatic loading
+for a matching research request, or explicitly invoke:
 
-## 致谢
+```text
+/skill:research-workflow <your research objective>
+```
 
-灵感来自 [Argus](https://github.com/lbx154/Argus) 的多角色协作架构（Manager → Planner → Engineer ⇄ Reviewer）。虽然这个 Skill 已经和 Argus 关系不大了，但 Argus 的设计思想——**把执行和评审分开、多角色各司其职**——是这一切的起点。
+### Pi — project-local
 
-感谢 lbx154 和 Argus 团队的工作！
+From a trusted project:
+
+```bash
+mkdir -p .pi/skills/research-workflow
+cp SKILL.md .pi/skills/research-workflow/SKILL.md
+```
+
+### Hermes
+
+```bash
+mkdir -p ~/.hermes/skills/research-workflow
+cp SKILL.md ~/.hermes/skills/research-workflow/SKILL.md
+```
+
+Skill discovery and invocation can vary by Hermes version; follow the documentation
+for the installed version if it does not discover the directory automatically.
+
+## Limitations
+
+- A Markdown Skill cannot enforce process isolation, daemon persistence, or an
+  independent Reviewer by itself.
+- Web search, browser access, subagents, and long-running process support depend on
+  the host agent and its configured tools.
+- The workflow is intentionally not activated for simple factual questions or
+  one-step edits.
+- The optional `.research-workflow/` state is project-local and should not contain
+  credentials, private source text, or large raw artifacts.
+
+## Attribution
+
+Inspired by [Argus](https://github.com/lbx154/Argus), especially its separation of
+planning, execution, and review and its use of durable project memory. This Skill is
+an independent community contribution, not an official Argus compatibility layer or
+a benchmarked claim of superiority.
