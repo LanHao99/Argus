@@ -5,6 +5,11 @@ import os
 from argus_skill.release_tools import build_release
 
 
+def test_release_uses_the_platform_npm_launcher() -> None:
+    expected = "npm.cmd" if os.name == "nt" else "npm"
+    assert build_release.NPM_COMMAND == expected
+
+
 def test_release_subprocesses_use_current_python_bin(monkeypatch) -> None:
     captured = {}
     monkeypatch.setattr(build_release.sys, "executable", "/opt/argus-venv/bin/python")
