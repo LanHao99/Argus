@@ -36,6 +36,7 @@ def test_launcher_execs_node_with_bundled_ink(monkeypatch, tmp_path: Path) -> No
     monkeypatch.delenv("ARGUS_TUI_LOCAL_SOURCE_DIGEST", raising=False)
     monkeypatch.setattr(tui_launcher.shutil, "which", lambda name: "/usr/bin/node")
     monkeypatch.setattr(tui_launcher, "_node_major", lambda node: 20)
+    monkeypatch.setattr(tui_launcher, "_needs_foreground_spawn", lambda: False)
     monkeypatch.setattr(
         tui_launcher.os,
         "execv",
@@ -80,6 +81,7 @@ def test_binary_launcher_points_tui_at_real_frozen_backend(
     monkeypatch.setattr(tui_launcher, "_bundle_path", lambda: bundle)
     monkeypatch.setattr(tui_launcher.shutil, "which", lambda name: "/usr/bin/node")
     monkeypatch.setattr(tui_launcher, "_node_major", lambda node: 22)
+    monkeypatch.setattr(tui_launcher, "_needs_foreground_spawn", lambda: False)
     monkeypatch.setattr(
         tui_launcher.os,
         "execv",
