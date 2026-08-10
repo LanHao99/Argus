@@ -442,7 +442,7 @@ class _VerticalDecisionMixin:
         """Coarse kind for a resolved vertical: optimize | research | custom."""
         if vertical in _OPTIMIZE_VERTICALS:
             return "optimize"
-        if vertical in ("research", "quant"):
+        if vertical in ("research", "medical", "quant"):
             return "research"
         if vertical == "software":
             return "software"
