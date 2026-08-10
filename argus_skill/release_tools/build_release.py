@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+NPM_COMMAND = "npm.cmd" if os.name == "nt" else "npm"
 
 
 def run(*argv: str, cwd: Path = ROOT) -> None:
@@ -44,8 +45,8 @@ def main() -> int:
             "argus_skill.release_tools.generate_manifest",
             "--prepare-build",
         )
-        run("npm", "run", "build", cwd=ROOT / "frontend" / "web")
-        run("npm", "run", "build", cwd=ROOT / "frontend" / "tui")
+        run(NPM_COMMAND, "run", "build", cwd=ROOT / "frontend" / "web")
+        run(NPM_COMMAND, "run", "build", cwd=ROOT / "frontend" / "tui")
         run(
             sys.executable,
             "-m",

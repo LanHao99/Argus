@@ -15,6 +15,7 @@ import { ApiClient } from '../src/api.js';
 import {
   ensureApi,
   probeApi,
+  repoBackendPath,
   scheduleOutdatedDaemonUpgrades,
   uniqueWarningReporter,
   type ApiProbeResult,
@@ -45,6 +46,14 @@ function meta(overrides: Record<string, unknown> = {}): Record<string, unknown> 
     ...overrides,
   };
 }
+
+test('repository backend path follows the platform venv layout', () => {
+  const windows = repoBackendPath('/repo', 'win32').replaceAll('\\', '/');
+  const posix = repoBackendPath('/repo', 'linux').replaceAll('\\', '/');
+
+  assert.match(windows, /\/repo\/\.venv\/Scripts\/argus-skill\.exe$/);
+  assert.match(posix, /\/repo\/\.venv\/bin\/argus-skill$/);
+});
 
 test('protocol contract accepts the current server and rejects missing capabilities', () => {
   assert.equal(inspectApiMeta(meta()).compatible, true);
@@ -412,7 +421,10 @@ test('replaces a proven owned stale API with SIGTERM only', async () => {
   assert.equal(rec.pid, 9876);
   assert.equal(rec.host, '127.0.0.1');
   assert.equal(rec.port, 8899);
-  assert.equal(basename(rec.backendBin), 'argus-skill');
+  assert.equal(
+    basename(rec.backendBin),
+    process.platform === 'win32' ? 'argus-skill.exe' : 'argus-skill',
+  );
   assert.equal(typeof rec.startedAt, 'string');
 });
 
@@ -656,7 +668,10 @@ test('normal autostart writes ownership record immediately after spawn', async (
   assert.equal(rec.pid, 7777);
   assert.equal(rec.host, '127.0.0.1');
   assert.equal(rec.port, 8899);
-  assert.equal(basename(rec.backendBin), 'argus-skill');
+  assert.equal(
+    basename(rec.backendBin),
+    process.platform === 'win32' ? 'argus-skill.exe' : 'argus-skill',
+  );
   assert.equal(typeof rec.startedAt, 'string');
 });
 
