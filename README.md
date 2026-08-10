@@ -151,6 +151,10 @@ argus --doctor   # verify the installation
 argus --status   # inspect the current runtime
 ```
 
+### Codex / Claude Code plugin
+
+One-command installation and usage: [docs/plugin.md](docs/plugin.md).
+
 ## Interfaces
 
 ### Terminal cockpit
