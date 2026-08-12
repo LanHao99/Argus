@@ -33,6 +33,7 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+from pathlib import Path
 from types import ModuleType
 from typing import TypeAlias
 
@@ -267,6 +268,39 @@ def vertical_search_altitude(mod: VerticalDefinition, project_root: object) -> s
     return result if isinstance(result, str) else ""
 
 
+def vertical_stage_primary_deliverables(
+    mod: VerticalDefinition,
+    *,
+    stage: str,
+) -> tuple[str, ...]:
+    """Return provider-declared primary artifacts for one stage."""
+    raw = getattr(mod, "STAGE_PRIMARY_DELIVERABLES", {})
+    if not isinstance(raw, dict):
+        return ()
+    values = raw.get(str(stage or "").strip().lower(), ())
+    if not isinstance(values, (list, tuple)):
+        return ()
+    return tuple(path for value in values if (path := str(value or "").strip()))
+
+
+def vertical_stage_completion_issues(
+    mod: VerticalDefinition,
+    *,
+    stage: str,
+    project_root,
+) -> tuple[str, ...]:
+    """Run the provider's deterministic completion validator, if declared."""
+    fn = getattr(mod, "stage_completion_issues", None)
+    if not callable(fn):
+        return ()
+    value = fn(str(stage or "").strip().lower(), Path(project_root))
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        raise TypeError("stage_completion_issues must return an iterable, not str")
+    return tuple(text for issue in value if (text := str(issue or "").strip()))
+
+
 __all__ = [
     "DEFAULT_VERTICAL",
     "VerticalDefinition",
@@ -281,4 +315,6 @@ __all__ = [
     "vertical_research_target_levels",
     "vertical_workflow_mode",
     "vertical_search_altitude",
+    "vertical_stage_completion_issues",
+    "vertical_stage_primary_deliverables",
 ]

@@ -144,6 +144,10 @@ argus --doctor   # 检查安装与后端
 argus --status   # 查看当前运行状态
 ```
 
+### Codex / Claude Code 插件
+
+一键安装与使用：[docs/plugin.md](docs/plugin.md)。
+
 ## 交互界面
 
 ### Terminal Cockpit

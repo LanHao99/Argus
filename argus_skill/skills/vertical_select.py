@@ -60,7 +60,7 @@ log = logging.getLogger(__name__)
 #:   kernelbench      — Task 3: maximize SOL score (B200 kernels)
 VERTICALS: tuple[str, ...] = (
     "software", "digital_circuit", "digital_circuit_benchmark", "chip_design",
-    "research", "math", "physics", "materials", "quant", "speedrun",
+    "research", "medical", "math", "physics", "materials", "quant", "speedrun",
     "kernel_engineering", "nanochat", "nanogpt_speedrun", "kernelbench",
     "learning", "ale_last_exam", "fiction_writing", "classical_poetry",
     "modern_poetry", "prose", "literary_editor",
@@ -86,6 +86,10 @@ VERTICAL_PURPOSES: dict[str, str] = {
     "provenance-bound pre-tapeout release",
     "research": "full multi-stage research-PAPER pipeline (literature review → "
     "experiments → draft → submission); the default when the goal is a written paper",
+    "medical": "biomedical and pharmaceutical evidence execution: target-disease "
+    "mechanisms, human genetics, preclinical translation, clinical trials, safety, "
+    "failed programs, competitive pipelines, and auditable non-diagnostic decision "
+    "dossiers with independent review; not a generic paper pipeline",
     "math": "mathematical conjectures, proofs, and open research problems; dynamically "
     "choose background retrieval, examples/counterexamples, computation, natural-language "
     "proof, and Lean formalization as appropriate; not a paper pipeline or a "
