@@ -157,6 +157,14 @@ One-command installation and usage: [docs/plugin.md](docs/plugin.md).
 
 ## Interfaces
 
+### Windows Desktop
+
+The Windows x64 source tree includes an Electron host that supervises a frozen
+copy of the same Argus runtime and opens the existing Web cockpit—there is no
+separate Desktop fork of Manager, Workbench, or the WebAPI. Source setup,
+security boundaries, verification, and packaging commands are documented in
+**[Windows Desktop](docs/windows-desktop.md)**.
+
 ### Terminal cockpit
 
 ```bash
