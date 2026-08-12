@@ -170,8 +170,14 @@ def _planner_task_signature(
     stage_closing: bool = False,
     require_independent_review: bool = False,
     skip_stage_transition: bool = False,
+    execution_workdir: str = "",
 ) -> tuple[str, ...]:
     """Identity for deduping work, including the evidence revision it reads.
+
+    Mission-quality prose is deliberately not identity: old persisted rows do not
+    have it, and wording a new hypothesis differently must not duplicate the same
+    executable task. Dynamic plan revision already excludes the superseded active
+    plan, so a genuine replacement remains enqueueable.
 
     Title/objective-only dedup incorrectly suppresses a legitimate rerun after
     an upstream artifact changes. Stable context refs keep true duplicates
@@ -199,6 +205,7 @@ def _planner_task_signature(
             else "independent_review_optional"
         ),
         "stage_transition_skipped" if skip_stage_transition else "stage_transition_allowed",
+        str(execution_workdir or "").strip(),
     )
 
 

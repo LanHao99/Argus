@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import uuid
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -67,6 +68,7 @@ class EventType(StrEnum):
     ROUND_ESCALATED = "round.escalated"
     ROUND_STALL = "round.stall"
     ROUND_REVIEWER_BACKEND_FAILURE = "round.reviewer_backend_failure"
+    ROLE_SESSION_TURN = "role.session.turn"
     ENGINEER_PROGRESS = "engineer.progress"
     ENGINEER_SELF_REVIEW_ACCEPTED = "engineer.self_review.accepted"
     ENGINEER_SELF_REVIEW_REJECTED = "engineer.self_review.rejected"
@@ -84,6 +86,7 @@ class EventType(StrEnum):
     LIFE_MANAGER_INTENT_COMPLETED = "life.manager.intent.completed"
     LIFE_MANAGER_INTENT_FAILED = "life.manager.intent.failed"
     LIFE_MANAGER_STAGE_DECISION = "life.manager.stage_decision"
+    LIFE_MANAGER_PLAN_CHALLENGE_DECIDED = "life.manager.plan_challenge.decided"
     LIFE_VERTICAL_RESOLVED = "life.vertical.resolved"
     LIFE_PLANNER_START = "life.planner.start"
     LIFE_PLANNER_TASK_ADDED = "life.planner.task_added"
@@ -229,6 +232,7 @@ SIGNAL_EVENT_TYPES: frozenset[str] = frozenset({
     EventType.LIFE_MANAGER_INTENT_COMPLETED,
     EventType.LIFE_MANAGER_INTENT_FAILED,
     EventType.LIFE_MANAGER_STAGE_DECISION,
+    EventType.LIFE_MANAGER_PLAN_CHALLENGE_DECIDED,
     EventType.LIFE_VERTICAL_RESOLVED,
     EventType.LIFE_PLANNER_START,
     EventType.LIFE_PLANNER_TASK_ADDED,
@@ -474,7 +478,15 @@ def normalize_event_envelope(
     if canonical_event_type(out.get("type")) == EventType.LIFE_MANAGER_INTENT_COMPLETED:
         # Daemon-boot handoffs historically predated the shared Manager intent
         # payload and recorded the same values under intent/execution names.
-        out.setdefault("item_id", out.get("intent_id"))
+        correlation_id = str(
+            out.get("item_id") or out.get("intent_id") or ""
+        ).strip()
+        if not correlation_id:
+            correlation_id = f"legacy-{uuid.uuid4().hex}"
+        if not str(out.get("intent_id") or "").strip():
+            out["intent_id"] = correlation_id
+        if not str(out.get("item_id") or "").strip():
+            out["item_id"] = correlation_id
         out.setdefault("objective", out.get("execution_task"))
     out.setdefault("ts", time.time() if timestamp is None else float(timestamp))
     out.setdefault("event_schema_version", EVENT_ENVELOPE_VERSION)

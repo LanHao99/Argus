@@ -33,7 +33,7 @@ function copyView(view: MissionView): MissionView {
 
 export function emptyMissionView(): MissionView {
   return {
-    schema_version: 2,
+    schema_version: 3,
     bootstrapped: false,
     mission: {
       id: '',
@@ -69,6 +69,7 @@ export function emptyMissionView(): MissionView {
     },
     achievement: null,
     review: { status: '', reason: '', rejected_attempts: 0 },
+    frontier: { change: '', summary: '', updated_at: 0 },
     outcome: {},
     last_event_ts: 0,
     updated_at: 0,
@@ -188,7 +189,15 @@ export function reduceMissionViewEvent(view: MissionView, event: EventMsg): Miss
   const ts = Number(event.ts ?? Date.now() / 1000);
   view.last_event_ts = Math.max(view.last_event_ts, ts);
 
-  if (type === EVENT_TYPES.LIFE_MANAGER_INTENT_COMPLETED) {
+  if (type === EVENT_TYPES.LIFE_MANAGER_INTENT_STARTED) {
+    view.mission.id = S(event, 'item_id') || S(event, 'intent_id');
+    view.mission.title = S(event, 'objective').slice(0, 240);
+    view.mission.objective = S(event, 'objective');
+    view.mission.status = 'grounding';
+    setRole(view, 'manager', 'active', 'Grounding project', ts);
+    addTimeline(view, event, 'manager', 'Project grounding started', S(event, 'objective'));
+    addRoleWork(view, event, 'manager', 'grounding', 'Grounding project', S(event, 'objective'), 'active');
+  } else if (type === EVENT_TYPES.LIFE_MANAGER_INTENT_COMPLETED) {
     view.mission.id = S(event, 'item_id');
     view.mission.title = S(event, 'objective').slice(0, 240);
     view.mission.objective = S(event, 'objective');
@@ -214,6 +223,19 @@ export function reduceMissionViewEvent(view: MissionView, event: EventMsg): Miss
       'Goal framed',
       S(event, 'reason') || S(event, 'execution_task'),
       'done',
+    );
+  } else if (type === EVENT_TYPES.LIFE_MANAGER_INTENT_FAILED) {
+    view.mission.status = 'failed';
+    setRole(view, 'manager', 'error', 'Manager routing failed', ts);
+    addTimeline(view, event, 'manager', 'Manager routing failed', S(event, 'error') || S(event, 'reason'), 'error');
+    addRoleWork(
+      view,
+      event,
+      'manager',
+      'grounding',
+      'Manager routing failed',
+      S(event, 'error') || S(event, 'reason'),
+      'error',
     );
   } else if (type === EVENT_TYPES.LIFE_MANAGER_STAGE_DECISION) {
     const stage = S(event, 'target_stage') || S(event, 'stage') || S(event, 'current_stage');
@@ -318,6 +340,14 @@ export function reduceMissionViewEvent(view: MissionView, event: EventMsg): Miss
       reason,
       rejected_attempts: view.review.rejected_attempts + (['continue', 'blocked'].includes(status) ? 1 : 0),
     };
+    const frontierChange = S(event, 'frontier_change');
+    if (frontierChange) {
+      view.frontier = {
+        change: frontierChange,
+        summary: S(event, 'frontier_summary'),
+        updated_at: ts,
+      };
+    }
     setRole(view, 'reviewer', status === 'done' ? 'done' : 'rejected', status === 'done' ? 'Accepted evidence' : 'Requested another attempt', ts);
     addTimeline(view, event, 'reviewer', status === 'done' ? 'Evidence accepted' : 'Attempt rejected', reason, status === 'done' ? 'success' : 'error');
     const nextAction = S(event, 'next_action');
@@ -481,6 +511,8 @@ export function reduceMissionViewEvent(view: MissionView, event: EventMsg): Miss
 function mergeSnapshot(view: MissionView, snapshot: Snapshot, artifacts: ArtifactInfo[]): boolean {
   const active = snapshot.backlog.find((item) => ACTIVE_STATUSES.has(item.status));
   const queued = snapshot.backlog.find((item) => item.status === 'pending');
+  const owner = snapshot.backlog.find((item) => item.id === view.mission.id);
+  const selected = active ?? owner;
   const missionContext = Boolean(
     active
     || queued
@@ -490,21 +522,24 @@ function mergeSnapshot(view: MissionView, snapshot: Snapshot, artifacts: Artifac
     || view.mission.id
     || !['', 'idle'].includes(view.mission.status),
   );
-  const objective = snapshot.continuous?.objective
+  const objective = selected?.objective
+    || selected?.title
+    || (snapshot.continuous?.enabled ? snapshot.continuous.objective : '')
     || snapshot.session.objective
-    || active?.objective
-    || active?.title
-    || queued?.objective
-    || queued?.title
+    || (!view.mission.id ? queued?.objective : '')
+    || (!view.mission.id ? queued?.title : '')
     || view.mission.objective;
   if (objective) {
     view.mission.objective = objective;
-    if (!view.mission.title) view.mission.title = objective.split('\n')[0].slice(0, 240);
+    if (selected) view.mission.title = (selected.title || objective.split('\n')[0]).slice(0, 240);
+    else if (!view.mission.title) view.mission.title = objective.split('\n')[0].slice(0, 240);
   }
   if (active) {
     view.mission.id = active.id;
     view.mission.status = 'working';
     view.mission.started_at = view.mission.started_at ?? active.started_ts ?? null;
+  } else if (owner) {
+    if (owner.status === 'pending') view.mission.status = 'queued';
   } else if (snapshot.continuous?.done_reason || snapshot.continuous?.done_at) {
     view.mission.status = 'complete';
   } else if (queued || snapshot.continuous?.enabled) {
@@ -534,14 +569,22 @@ function mergeSnapshot(view: MissionView, snapshot: Snapshot, artifacts: Artifac
       branch_id: item.id,
       parent_branch_id: item.deps?.[0] ?? null,
       acceptance_check: item.acceptance_check ?? '',
+      plan_hypothesis: item.plan_hypothesis ?? '',
+      goal_contribution: item.goal_contribution ?? '',
+      expected_regressions: item.expected_regressions ?? '',
+      decision_rule: item.decision_rule ?? '',
       non_goals: item.non_goals ?? [],
     };
     upsert(view.dag as Array<MissionDagNode & Record<string, unknown>>, 'id', node.id, node as MissionDagNode & Record<string, unknown>);
   });
-  const latestOutcome = [...snapshot.backlog]
-    .filter((item) => item.outcome?.execution_status)
-    .sort((left, right) => Number(left.finished_ts ?? 0) - Number(right.finished_ts ?? 0))
-    .at(-1)?.outcome;
+  const latestOutcome = selected?.outcome?.execution_status
+    ? selected.outcome
+    : !view.mission.id
+      ? [...snapshot.backlog]
+          .filter((item) => item.outcome?.execution_status)
+          .sort((left, right) => Number(left.finished_ts ?? 0) - Number(right.finished_ts ?? 0))
+          .at(-1)?.outcome
+      : undefined;
   if (!active && latestOutcome) {
     view.outcome = missionOutcomeDimensions({
       outcome: latestOutcome,

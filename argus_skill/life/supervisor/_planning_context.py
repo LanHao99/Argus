@@ -43,7 +43,7 @@ class PlanningContextMixin:
 
     def _planner_task_tags(self, task: Any) -> list[str]:
         scope = self._normalize_planner_scope(getattr(task, "scope", ""))
-        if scope == PLANNER_SCOPE_FINAL_SUBMISSION and not self._effective_full_paper_gate(
+        if scope == PLANNER_SCOPE_FINAL_SUBMISSION and not self._effective_final_certification_gate(
             self._artifact_root()
         ):
             # ``final_submission`` is a paper-only transport scope. A Planner
@@ -63,6 +63,23 @@ class PlanningContextMixin:
             tags.append("review:required")
         if bool(getattr(task, "skip_stage_transition", False)):
             tags.append("stage_transition:skip")
+        if bool(getattr(task, "stage_repair", False)):
+            tags.append("stage_repair")
+        if bool(getattr(task, "allow_skill_changes", False)):
+            tags.append("skill_changes:allowed")
+        # Bind Planner work to the stage in which it was proposed.  This is
+        # host-owned routing metadata, not a model judgement.  It lets the
+        # enqueue boundary distinguish "re-run the same certification" from
+        # "certify a later stage" even when the Planner rewords the title.
+        stage_reader = getattr(self, "_current_pipeline_stage", None)
+        stage = ""
+        if callable(stage_reader):
+            try:
+                stage = str(stage_reader() or "").strip().lower()
+            except Exception:  # noqa: BLE001 - a missing stage tag is legacy-safe
+                stage = ""
+        if stage:
+            tags.append(f"stage:{stage}")
         return tags
 
     @staticmethod
@@ -164,6 +181,15 @@ class PlanningContextMixin:
         scope = self._planner_scope_from_item(item)
         context_refs = [ref for ref in getattr(item, "context_refs", []) if isinstance(ref, dict)]
         acceptance_check = str(getattr(item, "acceptance_check", "") or "").strip()
+        plan_hypothesis = str(getattr(item, "plan_hypothesis", "") or "").strip()
+        goal_contribution = str(getattr(item, "goal_contribution", "") or "").strip()
+        expected_regressions = str(
+            getattr(item, "expected_regressions", "") or ""
+        ).strip()
+        decision_rule = str(getattr(item, "decision_rule", "") or "").strip()
+        execution_workdir = str(
+            getattr(item, "execution_workdir", "") or ""
+        ).strip()
         non_goals = [
             str(value).strip() for value in getattr(item, "non_goals", []) if str(value).strip()
         ]
@@ -173,6 +199,11 @@ class PlanningContextMixin:
             and not getattr(item, "plan_id", "")
             and not context_refs
             and not acceptance_check
+            and not plan_hypothesis
+            and not goal_contribution
+            and not expected_regressions
+            and not decision_rule
+            and not execution_workdir
             and not non_goals
         ):
             return ""
@@ -184,6 +215,10 @@ class PlanningContextMixin:
             lines.append(f"- node_key: {item.node_key}")
         if scope:
             lines.append(f"- planner_scope: {scope}")
+        if execution_workdir:
+            lines.append(
+                "- execution_repository_request: " + execution_workdir
+            )
         if self._item_requires_independent_review(item):
             lines.append(
                 "- independent_review: REQUIRED; this mission must close through "
@@ -196,6 +231,23 @@ class PlanningContextMixin:
             )
         if item.tags:
             lines.append("- tags: " + ", ".join(item.tags))
+        if any(str(tag).strip().lower() == "operator_priority" for tag in item.tags):
+            lines.append(
+                "- authority: this is the latest explicit operator task. Execute its "
+                "requested actions before autonomously derived cleanup or hardening; "
+                "do not replace its outcome with project housekeeping."
+            )
+        if plan_hypothesis:
+            lines.append("- planner_working_hypothesis: " + plan_hypothesis)
+            lines.append(
+                "  This is revisable technical strategy, not an operator-owned constraint."
+            )
+        if goal_contribution:
+            lines.append("- goal_frontier_contribution: " + goal_contribution)
+        if expected_regressions:
+            lines.append("- allowed_temporary_regressions: " + expected_regressions)
+        if decision_rule:
+            lines.append("- revise_split_or_abandon_when: " + decision_rule)
         if acceptance_check:
             lines.append("- what_good_looks_like: " + acceptance_check)
         if non_goals:
@@ -244,7 +296,7 @@ class PlanningContextMixin:
                         lines.append(f"  {label}: {value}")
         return "\n".join(lines)
 
-    def _journal_has_full_paper_gate_success(self) -> bool:
+    def _journal_has_final_certification(self) -> bool:
         """Decide whether the project-final completion gate has passed.
 
         Source of truth (post-validator-retirement): the event timeline. A
@@ -252,7 +304,7 @@ class PlanningContextMixin:
         reviewer returns a full-pipeline completion verdict, which the
         supervisor records as a ``life.mission.completed`` event carrying
         ``final_submission_certified = True``. We no longer call the
-        hardcoded ``validate_full_paper_readiness`` validator — the reviewer's
+        retired hardcoded paper-readiness validator — the reviewer's
         checklist verdict is the single source of truth.
 
         Fail-closed: only an explicit certified entry bound to the current
@@ -287,11 +339,11 @@ class PlanningContextMixin:
                     return True
         return False
 
-    def _effective_full_paper_gate(self, workdir: object) -> bool:
+    def _effective_final_certification_gate(self, workdir: object) -> bool:
         """Whether the full-pipeline final-submission gate applies here.
 
-        Returns ``self.config.full_paper_gate`` AND the active vertical's
-        completion gate being the paper gate (``"full_paper"``). The
+        Returns ``self.config.final_certification_gate`` AND the active vertical's
+        completion gate requiring independent final certification. The
         final-submission completion gate only makes sense for a *research*
         vertical: a ``speedrun`` mission runs just the optimize+measure stages
         and has no submission package to certify, so requiring the gate would
@@ -301,16 +353,13 @@ class PlanningContextMixin:
         The read side is deterministic and exception-free, so this never spends
         a token.
         """
-        if not self.config.full_paper_gate:
+        if not self.config.final_certification_gate:
             return False
         from ...skills.vertical_select import (
             VerticalResolutionError,
             resolve_vertical,
         )
-        from ...verticals._base import (
-            load_vertical,
-            vertical_completion_gate,
-        )
+        from ...verticals._base import load_vertical_contract
 
         try:
             vertical = resolve_vertical(workdir)
@@ -321,8 +370,9 @@ class PlanningContextMixin:
             # default to research — resolve_vertical still raised loudly, we just
             # treat "no vertical yet" as "gate not satisfied" for THIS check.
             return False
-        mod = load_vertical(vertical, project_root=workdir)
-        return vertical_completion_gate(mod) == "full_paper"
+        return load_vertical_contract(
+            vertical, project_root=workdir
+        ).completion_gate == "certified"
 
     def _final_submission_signature(self) -> str:
         from ..terminal_state import build_project_state_signature
@@ -400,8 +450,8 @@ class PlanningContextMixin:
     def _defer_project_done_for_operator_external_blocker(self, verdict: Any) -> Any:
         if not (
             getattr(verdict, "project_done", False)
-            and self._effective_full_paper_gate(self._artifact_root())
-            and not self._journal_has_full_paper_gate_success()
+            and self._effective_final_certification_gate(self._artifact_root())
+            and not self._journal_has_final_certification()
         ):
             return verdict
         wait_reason = self._operator_only_external_blocker_wait_reason()
@@ -436,6 +486,7 @@ class PlanningContextMixin:
             if not isinstance(continuous, dict) or not continuous.get("enabled"):
                 return {}
             target_generation = int(continuous.get("generation", 0) or 0)
+            target_objective = str(continuous.get("objective") or "").strip()
             data: dict[str, Any] | None = None
             for name in ("events.jsonl", "events.jsonl.1"):
                 path = Path(root) / name
@@ -454,7 +505,12 @@ class PlanningContextMixin:
                         execution_task = event.get("execution_task")
                         if not isinstance(execution_task, str) or not execution_task.strip():
                             continue
-                        if event.get("continuous_generation") != target_generation:
+                        event_generation = int(
+                            event.get("continuous_generation", 0) or 0
+                        )
+                        if event_generation > target_generation:
+                            continue
+                        if str(execution_task).strip() != target_objective:
                             continue
                         data = event
                         break
@@ -468,13 +524,28 @@ class PlanningContextMixin:
                 "execution_task",
                 "vertical",
                 "kind",
+                "stage",
+                "current_stage",
+                "workflow_mode",
+                "research_target_level",
+                "learned_vertical_status",
                 "continuous_generation",
                 "stages",
                 "reason",
                 "text",
                 "error",
             )
-            return {k: data.get(k) for k in keep if k in data}
+            intent = {k: data.get(k) for k in keep if k in data}
+            stage_reader = getattr(self, "_current_pipeline_stage", None)
+            live_stage = (
+                str(stage_reader() or "").strip()
+                if callable(stage_reader)
+                else ""
+            )
+            if live_stage:
+                intent["stage"] = live_stage
+                intent["current_stage"] = live_stage
+            return intent
         except Exception:  # noqa: BLE001
             return {}
 
@@ -518,8 +589,12 @@ class PlanningContextMixin:
         if provider is None:
             return
         try:
-            enabled, objective = provider()
+            enabled, objective, open_ended = provider()
             self.config.continuous = enabled
+            self.config.open_ended = open_ended
+            self.config.final_certification_gate = bool(
+                self.config.paper_mission and open_ended
+            )
             if objective:
                 self.config.continuous_objective = objective
         except Exception:  # noqa: BLE001
@@ -726,18 +801,28 @@ class PlanningContextMixin:
         state = self._load_manager_planner_feedback()
         if state is None:
             return ""
+        diagnostic = str(state.get("diagnostic") or "")
+        task_instruction = (
+            "The missing invariant is final independent certification. Author the "
+            "next executable certification task with "
+            "`TASK_SCOPE=final_submission`, so its successful Reviewer verdict can "
+            "be recorded as project-final evidence."
+            if diagnostic == "final_certification_missing"
+            else (
+                "You decide which tasks, if any, are appropriate; the harness does "
+                "not prescribe a repair or delivery task."
+            )
+        )
         return (
-            "MANAGER TO PLANNER REVISION FEEDBACK (durable and unresolved):\n"
+            "PLANNER VERDICT REJECTION (durable and unresolved):\n"
             f"- current_stage: {state.get('stage') or ''}\n"
-            f"- diagnostic: {state.get('diagnostic') or ''}\n"
+            f"- diagnostic: {diagnostic}\n"
             f"- repeated_attempts: {int(state.get('attempts') or 1)}\n"
             f"- rejection_reason: {state.get('reason') or ''}\n"
-            "The Manager attempted the requested stage transition, but framework "
-            "authority rejected it because the required Reviewer evidence is "
-            "incomplete. Re-plan now: emit one or more bounded new_tasks that gather "
-            "or repair the missing current-stage evidence and obtain a complete "
-            "Reviewer verdict. Do not return waiting on the same stage authority, "
-            "and do not start next-stage work."
+            "The previous plan or completion verdict failed a framework-owned "
+            "invariant. Re-plan now from the rejection reason and current evidence. "
+            f"{task_instruction} Do not repeat the rejected "
+            "verdict without new evidence."
         )
 
     @staticmethod

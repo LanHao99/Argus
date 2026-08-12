@@ -16,10 +16,11 @@ import hashlib
 import pytest
 
 from argus_skill.skills.builtins import (
+    _RETIRED_BUILTIN_SEED_HASHES,
     _validate_builtin,
     iter_builtin_skill_texts,
     iter_vertical_skill_texts,
-    remove_unmodified_inactive_vertical_skill_seeds,
+    remove_unmodified_inactive_context_skill_seeds,
     remove_unmodified_vertical_skill_seeds,
     retire_orphaned_builtin_seeds,
     seed_builtin_skills_for_vertical,
@@ -45,8 +46,17 @@ MATH_SKILLS = {
 
 RETIRED_BUILTIN_SKILLS = {
     "engineer/experiment-audit.md",
+    "engineer/nanochat-autoresearch-hands-on-trace.md",
+    "engineer/nanochat-autoresearch-sota-optimization.md",
+    "engineer/nanochat-pretrain-runner.md",
     "engineer/paper-claim-audit.md",
     "engineer/singularity-amlt-gpu-ops.md",
+}
+
+RETIRED_NANOCHAT_SKILLS = {
+    "engineer/nanochat-autoresearch-hands-on-trace.md",
+    "engineer/nanochat-autoresearch-sota-optimization.md",
+    "engineer/nanochat-pretrain-runner.md",
 }
 
 
@@ -64,6 +74,7 @@ def test_iter_vertical_skill_texts_unknown_or_skill_less_is_empty() -> None:
     assert list(iter_vertical_skill_texts("nope")) == []
     software = dict(iter_vertical_skill_texts("software"))
     assert set(software) == {
+        "engineer/software-change-implementation.md",
         "manager/software-project-grounding.md",
         "planner/software-project-grounding.md",
         "reviewer/software-change-review.md",
@@ -111,6 +122,13 @@ def test_retired_builtin_skills_are_not_packaged() -> None:
     packaged = {name for name, _text in iter_builtin_skill_texts()}
 
     assert packaged.isdisjoint(RETIRED_BUILTIN_SKILLS)
+
+
+def test_machine_specific_nanochat_playbooks_are_retired() -> None:
+    packaged = {name for name, _text in iter_vertical_skill_texts("nanochat")}
+
+    assert packaged == set()
+    assert RETIRED_NANOCHAT_SKILLS <= _RETIRED_BUILTIN_SEED_HASHES.keys()
 
 
 def test_retire_orphaned_builtin_seeds_archives_edited_copies(
@@ -279,7 +297,7 @@ def test_remove_inactive_vertical_seeds_prunes_math_but_preserves_edits_and_acti
         encoding="utf-8",
     )
 
-    removed = remove_unmodified_inactive_vertical_skill_seeds(
+    removed = remove_unmodified_inactive_context_skill_seeds(
         tmp_path,
         "research",
     )
@@ -296,7 +314,7 @@ def test_remove_inactive_vertical_seeds_with_no_active_vertical_prunes_all(
 ) -> None:
     seed_vertical_skills(tmp_path, "math")
 
-    removed = remove_unmodified_inactive_vertical_skill_seeds(tmp_path, None)
+    removed = remove_unmodified_inactive_context_skill_seeds(tmp_path, None)
 
     assert set(removed) == MATH_SKILLS
     assert not any((tmp_path / filename).exists() for filename in MATH_SKILLS)

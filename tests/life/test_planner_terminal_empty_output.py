@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from argus_skill.core.event_catalog import EventType
 from argus_skill.core.models import RunnerResult
 from argus_skill.life.context_packet import (
     create_mission_context,
@@ -16,11 +17,13 @@ from argus_skill.life.context_packet import (
 from argus_skill.life.memory import BacklogItem, LifeMemory, MemoryBundle
 from argus_skill.life.supervisor._config import LifeSupervisorConfig
 from argus_skill.life.supervisor._constants import (
+    PLAN_AWAITING,
     PLAN_ERROR,
     PLAN_RETRY,
     PLAN_TERMINAL_IDLE,
 )
 from argus_skill.life.supervisor._core import LifeSupervisor
+from argus_skill.manager import Manager
 from argus_skill.planner import NO_CONCRETE_TASKS_ERROR
 
 
@@ -71,7 +74,11 @@ class _EmptyPlannerThenManagerRunner:
             agent_messages=[json.dumps(payload) if isinstance(payload, dict) else payload],
             stdout_lines=[],
             stderr_lines=[],
-            thread_id=None,
+            thread_id=(
+                "planner-thread"
+                if run_label.startswith("planner.cycle")
+                else None
+            ),
             fatal_error=None,
             input_tokens=0,
             cached_input_tokens=0,
@@ -87,7 +94,11 @@ class _ContentFilterPlannerRunner(_EmptyPlannerThenManagerRunner):
             agent_messages=[],
             stdout_lines=[],
             stderr_lines=[],
-            thread_id=None,
+            thread_id=(
+                "planner-thread"
+                if run_label.startswith("planner.cycle")
+                else None
+            ),
             fatal_error=(
                 "Copilot content filtering blocked the response; the identical "
                 "prompt must not be retried"
@@ -118,6 +129,10 @@ class _EmptyThenTaskPlannerRunner(_EmptyPlannerThenManagerRunner):
                             "TASK_OBJECTIVE=Update planner lifecycle handling and "
                             "run the focused tests."
                         ),
+                        "TASK_HYPOTHESIS=Empty verdict recovery loses concrete next work.",
+                        "TASK_GOAL_CONTRIBUTION=Restore reliable Planner continuation.",
+                        "TASK_EXPECTED_REGRESSIONS=Planner retry status may remain noisy during repair.",
+                        "TASK_DECISION_RULE=Replan if the empty output comes from provider failure.",
                         "TASK_ACCEPTANCE_CHECK=pytest tests/planner/test_planner.py",
                         "TASK_SCOPE=bounded",
                         "TASK_STAGE_CLOSING=false",
@@ -138,7 +153,11 @@ class _EmptyThenTaskPlannerRunner(_EmptyPlannerThenManagerRunner):
             agent_messages=[json.dumps(payload) if isinstance(payload, dict) else payload],
             stdout_lines=[],
             stderr_lines=[],
-            thread_id=None,
+            thread_id=(
+                "planner-thread"
+                if run_label.startswith("planner.cycle")
+                else None
+            ),
             fatal_error=None,
             input_tokens=0,
             cached_input_tokens=0,
@@ -212,6 +231,7 @@ def _write_reviewed_math_scope_state(project: Path) -> None:
                 "current_stage": "scope",
                 "research_target_level": "doctoral",
                 "workflow_mode": "staged",
+                "math_objective_mode": "exploratory",
             }
         ),
         encoding="utf-8",
@@ -261,15 +281,21 @@ def _make_supervisor(
         memory = LifeMemory.open(tmp_path / "life")
     sink = _RecordingSink()
     backend = backend or _EmptyPlannerThenManagerRunner()
+    runner = _NullRunner()
+    runner.manager = Manager(
+        project_root=project,
+        execution_workdir=project,
+        runner=backend,
+    )
     supervisor = LifeSupervisor(
         memory=memory,
-        runner=_NullRunner(),
+        runner=runner,
         sink=sink,
         config=LifeSupervisorConfig(
             continuous=True,
             continuous_objective="finish the private framework repair",
             paper_mission=False,
-            full_paper_gate=False,
+            final_certification_gate=False,
             open_ended=True,
             project_worktree=project,
             artifact_root=project,
@@ -283,9 +309,61 @@ def _make_supervisor(
     monkeypatch.setattr(supervisor, "_render_journal_for_planner", lambda: "")
     monkeypatch.setattr(supervisor, "_recent_no_progress_failures", lambda: {})
     monkeypatch.setattr(supervisor, "_recent_subagent_family_failures", lambda: {})
-    monkeypatch.setattr(supervisor, "_effective_full_paper_gate", lambda *_a, **_k: False)
+    monkeypatch.setattr(supervisor, "_effective_final_certification_gate", lambda *_a, **_k: False)
     monkeypatch.setattr(supervisor, "_planner_runtime_with_idle_note", lambda: "")
     return supervisor, backend, sink
+
+
+def test_bounded_completed_campaign_stops_before_planner_cycle(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    supervisor, _backend, sink = _make_supervisor(
+        tmp_path,
+        monkeypatch,
+        terminal_stage_done=True,
+    )
+    supervisor.config.open_ended = False
+    monkeypatch.setattr(
+        supervisor,
+        "_plan_next_work",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("completed bounded campaign must not enter Planner")
+        ),
+    )
+
+    result = supervisor.run()
+
+    assert result["stopped_by"] == "project_done"
+    assert result["planning_cycles"] == 0
+    assert not any(
+        event.get("type") == EventType.LIFE_PLANNER_START
+        for event in sink.events
+    )
+
+
+def test_standing_campaign_is_not_stopped_by_bounded_completion_certificate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    supervisor, _backend, _sink = _make_supervisor(
+        tmp_path,
+        monkeypatch,
+        terminal_stage_done=True,
+    )
+    planner_calls = 0
+
+    def plan_once(*args, **kwargs):
+        nonlocal planner_calls
+        planner_calls += 1
+        return PLAN_TERMINAL_IDLE
+
+    monkeypatch.setattr(supervisor, "_plan_next_work", plan_once)
+
+    result = supervisor.run()
+
+    assert result["stopped_by"] == PLAN_TERMINAL_IDLE
+    assert planner_calls == 1
 
 
 def test_content_filtered_planner_disarms_campaign_instead_of_retrying(
@@ -381,7 +459,7 @@ def test_nonterminal_empty_plan_repairs_into_concrete_backlog_task(
     )
 
 
-def test_nonterminal_empty_plan_repair_exhaustion_fails_with_planner_error(
+def test_nonterminal_empty_plan_repair_exhaustion_asks_operator(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -391,23 +469,33 @@ def test_nonterminal_empty_plan_repair_exhaustion_fails_with_planner_error(
         terminal_stage_done=False,
     )
 
-    assert supervisor._plan_next_work() == PLAN_ERROR
+    assert supervisor._plan_next_work() == PLAN_AWAITING
 
     assert backend.planner_calls == 2
     assert backend.manager_calls == 0
-    assert supervisor.memory.backlog.pending() == []
+    paused = [
+        item for item in supervisor.memory.backlog.all()
+        if item.status == "paused_operator"
+    ]
+    assert len(paused) == 1
+    assert "cannot identify a concrete next task" in paused[0].pending_question
     error_event = next(
         event for event in sink.events if event.get("type") == "life.planner.error"
     )
     assert str(error_event.get("error", "")).startswith(NO_CONCRETE_TASKS_ERROR)
     assert "repair exhausted after 1 attempt" in str(error_event.get("error", ""))
+    assert error_event["operator_alert"] is True
+    assert any(
+        event.get("type") == "life.operator_question.pending"
+        for event in sink.events
+    )
     assert not any(
         event.get("type") == "life.planner.verdict" and event.get("status") == "completed"
         for event in sink.events
     )
 
 
-def test_nonterminal_empty_plan_repair_exhaustion_stops_run_with_planner_error(
+def test_nonterminal_empty_plan_repair_exhaustion_stops_for_operator_input(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -419,7 +507,7 @@ def test_nonterminal_empty_plan_repair_exhaustion_stops_run_with_planner_error(
 
     summary = supervisor.run()
 
-    assert summary["stopped_by"] == "planner_error"
+    assert summary["stopped_by"] == PLAN_AWAITING
     assert backend.planner_calls == 2
     error_event = next(
         event for event in sink.events if event.get("type") == "life.planner.error"

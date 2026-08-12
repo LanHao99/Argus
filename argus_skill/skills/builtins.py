@@ -29,16 +29,24 @@ _RETIRED_BUILTIN_SEED_HASHES = {
     "engineer/singularity-amlt-gpu-ops.md": (
         "18f7020894021a6a15a68e54022c3a7758535ce7e501cea4dc408a33f79ef6dc"
     ),
+    "engineer/nanochat-autoresearch-hands-on-trace.md": (
+        "7df00f9f7e985143e3ca1af53bf8d16eda864b7598ff8446034c27abefce528f"
+    ),
+    "engineer/nanochat-autoresearch-sota-optimization.md": (
+        "ef6acedaa464fb7e9e5bac60a7737ef8590f72f00c7d658f346d3a227a893ba6"
+    ),
+    "engineer/nanochat-pretrain-runner.md": (
+        "5986a1df8ca519f1ad4a20b9c175647922711b1bad0cf1855c0fdfa30a7d3b46"
+    ),
 }
 _VERTICAL_SKILL_INHERITANCE = {
     "digital_circuit_benchmark": ("digital_circuit",),
     "chip_design": ("digital_circuit",),
-    # The three Recursive "First Steps" benchmarks are concrete instances of
-    # the generic speedrun mission shape (a fixed budget, a single scalar to
-    # move), so they inherit its methodology skills. SOL work additionally
-    # needs the general GPU-kernel priors.
-    "kernelbench": ("speedrun", "kernel_engineering"),
-    "nanochat": ("speedrun",),
+    # SOL work additionally needs general GPU-kernel priors. NanoGPT is the
+    # concrete H100 speedrun represented by the speedrun playbooks. NanoChat's
+    # fixed-budget quality objective must not inherit those machine-specific
+    # H100 traces; it follows the current project's frozen harness instead.
+    "kernelbench": ("kernel_engineering",),
     "nanogpt_speedrun": ("speedrun",),
 }
 def builtin_skill_source_path() -> Path:
@@ -331,6 +339,7 @@ def seed_context_skills(
     """Seed only the active workflow/domain context into one runtime layer."""
     skills_dir = Path(skills_dir)
     skills_dir.mkdir(parents=True, exist_ok=True)
+    retire_orphaned_builtin_seeds(skills_dir)
     created: dict[str, bool] = {}
     for filename, text in iter_context_skill_texts(vertical, domain):
         if filename.endswith(".md"):
@@ -362,17 +371,6 @@ def remove_unmodified_vertical_skill_seeds(
         except OSError:
             continue
     return removed
-
-
-def remove_unmodified_inactive_vertical_skill_seeds(
-    skills_dir: Path,
-    active_vertical: str | None,
-) -> list[str]:
-    """Compatibility wrapper for a workflow without a domain overlay."""
-    return remove_unmodified_inactive_context_skill_seeds(
-        skills_dir,
-        active_vertical,
-    )
 
 
 def remove_unmodified_inactive_context_skill_seeds(

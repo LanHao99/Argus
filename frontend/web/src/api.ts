@@ -129,8 +129,6 @@ export interface UploadedAttachment {
   stored_name: string;
   mime: string;
   size_bytes: number;
-  sha256: string;
-  integrity: string;
 }
 export interface MessageAttachmentRef {
   attachment_id: string;
@@ -415,7 +413,13 @@ export const api = {
   updateProject: (sid: string, name: string) =>
     mutationJson<{ ok: boolean; sid: string; name: string }>('PATCH', P(sid), { name }),
   deleteProject: (sid: string) =>
-    mutationJson<{ ok: boolean; sid: string; trash_path: string }>('DELETE', P(sid)),
+    mutationJson<{
+      ok: boolean;
+      sid: string;
+      trash_path: string;
+      workdir: string;
+      workdir_preserved: boolean;
+    }>('DELETE', P(sid)),
   snapshot: async (sid: string, signal?: AbortSignal) => {
     await compatibleApiMeta();
     const value = await getJson<unknown>(
@@ -508,7 +512,6 @@ export const api = {
     decisionId: string,
     optionId: string,
     note: string,
-    expectedRevision: number,
   ) => postJson<{
     resolved: boolean;
     stopped?: boolean;
@@ -516,7 +519,7 @@ export const api = {
     daemon?: { rc?: number; error?: string; admission_required?: boolean };
   }>(
     P(sid, `/decisions/${encodeURIComponent(decisionId)}/resolve`),
-    { option_id: optionId, note, expected_revision: expectedRevision },
+    { option_id: optionId, note },
   ),
   uploadAttachments: async (
     sid: string,
@@ -686,10 +689,22 @@ export const api = {
 };
 
 /** Open the live event stream for a project. Returns a close() fn. */
+export type StreamCloseInfo = {
+  code: number;
+  reason: string;
+  retryable: boolean;
+};
+
+const NON_RETRYABLE_STREAM_CLOSE_CODES = new Set([4401, 4404]);
+
 export function openStream(
   sid: string,
   onEvent: (ev: EventMsg) => void,
-  opts: { replay?: number; onOpen?: () => void; onClose?: () => void } = {},
+  opts: {
+    replay?: number;
+    onOpen?: () => void;
+    onClose?: (info: StreamCloseInfo) => void;
+  } = {},
 ): () => void {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const q = new URLSearchParams();
@@ -713,9 +728,10 @@ export function openStream(
         /* ignore malformed frame */
       }
     };
-    ws.onclose = () => {
-      opts.onClose?.();
-      if (!closed) retry = setTimeout(connect, 1000); // reconnect with backoff
+    ws.onclose = (event) => {
+      const retryable = !NON_RETRYABLE_STREAM_CLOSE_CODES.has(event.code);
+      opts.onClose?.({ code: event.code, reason: event.reason, retryable });
+      if (!closed && retryable) retry = setTimeout(connect, 1000); // reconnect with backoff
     };
     ws.onerror = () => ws?.close();
   };

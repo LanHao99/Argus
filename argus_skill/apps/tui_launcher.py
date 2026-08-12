@@ -37,9 +37,6 @@ _PYTHON_ADMIN_FLAGS = frozenset(
         "--ppt-master-status",
         "--approve-publication",
         "--list-pending-publications",
-        "--skill-stats",
-        "--skill-stats-json",
-        "--skill-cleanse",
         "--export-builtin-skills",
         "--evidence-chain-check",
         "--anti-mediocrity-check",
@@ -174,7 +171,8 @@ def _configure_tui_backend_bin() -> None:
         return
     if os.environ.get("ARGUS_SKILL_BIN", "").strip():
         return
-    sibling = Path(sys.executable).parent / "argus-skill"
+    backend_name = "argus-skill.exe" if os.name == "nt" else "argus-skill"
+    sibling = Path(sys.executable).parent / backend_name
     if sibling.is_file():
         os.environ["ARGUS_SKILL_BIN"] = str(sibling)
 

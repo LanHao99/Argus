@@ -99,6 +99,7 @@ from ._planner_orchestration import PlannerOrchestrationMixin
 from ._planner_rendering import PlannerRenderingMixin
 from ._planning_context import PlanningContextMixin
 from ._planning_cycle import PlanningCycleMixin
+from .pending_notify import should_report_pending_wait
 
 log = logging.getLogger(__name__)
 
@@ -208,6 +209,7 @@ class LifeSupervisor(
     ) -> None:
         self.memory = memory
         self.runner = runner
+        self.manager = getattr(runner, "manager", None)
         self.sink = sink
         self.config = config or LifeSupervisorConfig()
         self.engineer_model = engineer_model
@@ -261,6 +263,11 @@ class LifeSupervisor(
         self._consecutive_no_progress_missions = 0
         self._reap_orphans_on_startup()
 
+    def _bound_manager(self) -> Any:
+        if self.manager is None:
+            raise RuntimeError("LifeSupervisor requires a composed Manager")
+        return self.manager.bind_execution_workdir(self._project_workdir())
+
     def _reap_orphans_on_startup(self) -> None:
         """Recover items left ``running`` by a crashed process.
 
@@ -307,24 +314,37 @@ class LifeSupervisor(
     def _project_workdir(self) -> Path:
         configured = self._configured_worktree()
         if configured is not None:
-            return configured
-        env_workdir = os.environ.get("ARGUS_SKILL_WORKDIR", "").strip()
-        if env_workdir:
-            return Path(env_workdir).expanduser()
-        project_root = getattr(self.memory, "project_root", None)
-        if project_root:
-            return Path(project_root)
-        project = getattr(self.memory, "project", None)
-        if project is not None:
-            root = getattr(project, "root", None)
-            if root:
-                return Path(root)
-        root = getattr(self.memory, "root", None)
-        if root:
-            return Path(root)
-        return Path.cwd()
+            base = configured
+        else:
+            env_workdir = os.environ.get("ARGUS_SKILL_WORKDIR", "").strip()
+            if env_workdir:
+                base = Path(env_workdir).expanduser()
+            else:
+                project_root = getattr(self.memory, "project_root", None)
+                if project_root:
+                    base = Path(project_root)
+                else:
+                    project = getattr(self.memory, "project", None)
+                    project_root = (
+                        getattr(project, "root", None)
+                        if project is not None
+                        else None
+                    )
+                    base = Path(project_root) if project_root else Path(
+                        getattr(self.memory, "root", None) or Path.cwd()
+                    )
+        try:
+            from ...core.campaign_workdir import active_campaign_workdir
+
+            active = active_campaign_workdir(self.memory.root, base)
+            if active is not None:
+                return active
+        except Exception:  # noqa: BLE001 - invalid persisted adoption falls back
+            log.debug("campaign workdir resolution failed", exc_info=True)
+        return base
 
     def _artifact_root(self) -> Path:
+        """Return the stable session root for Manager-owned harness state."""
         configured = getattr(self.config, "artifact_root", None)
         if configured is not None:
             return Path(configured).expanduser()
@@ -357,10 +377,8 @@ class LifeSupervisor(
 
     def _planner_config(self):
         from ...core.knobs import resolve_role_model
-        from ...planner import PlannerConfig
-
-        safe_mode = self._safe_mode_enabled()
         from ...daemon.state import read_continuous_state
+        from ...planner import PlannerConfig
 
         expected = read_continuous_state(self.memory.root)
 
@@ -374,21 +392,29 @@ class LifeSupervisor(
                 return "planner superseded by newer continuous generation"
             return None
 
+        from ...core.role_session import objective_revision
+
         workdir = self._planner_workdir()
         state_root = Path(self.memory.root)
         return PlannerConfig(
             model=resolve_role_model("planner", role_env="ARGUS_SKILL_PLAN_MODEL")
             or self.reviewer_model,
             reasoning_effort=os.environ.get(
-                "ARGUS_SKILL_PLANNER_REASONING_EFFORT", "xhigh"
+                "ARGUS_SKILL_PLANNER_REASONING_EFFORT", "high"
             ),
             working_dir=str(workdir),
+            state_root=str(state_root),
             add_dirs=([str(state_root)] if state_root != workdir else []),
             skip_git_repo_check=True,
-            full_auto=safe_mode,
-            dangerous_yolo=not safe_mode,
+            dangerous_yolo=False,
             open_ended=bool(getattr(self.config, "open_ended", False)),
             external_interrupt_reason_provider=_semantic_interrupt,
+            role_session_path=state_root / "role-sessions" / "planner.json",
+            objective_revision=(
+                f"{expected.generation}:"
+                f"{objective_revision(expected.objective)}"
+            ),
+            on_event=getattr(self.sink, "handle_event", None),
         )
 
     # ------------------------------------------------------------------
@@ -421,6 +447,88 @@ class LifeSupervisor(
                 + ", ".join(item.id for item in resumed)
             )
         return resumed
+
+    def _adjudicate_mission_challenge(self, outcome: dict[str, Any]) -> str:
+        """Persist the Manager authority decision before Planner sees a challenge."""
+        from ...manager import adjudicate_plan_challenge
+
+        report = outcome.get("planner_report")
+        challenge = dict(outcome.get("plan_challenge") or {})
+        if not challenge:
+            decision = adjudicate_plan_challenge(
+                report if isinstance(report, dict) else {},
+                reviewer_status=str(
+                    outcome.get("review_status") or outcome.get("status") or ""
+                ),
+                review_reason=str(outcome.get("review_reason") or ""),
+                next_action=str(outcome.get("stop_reason") or ""),
+            )
+            challenge = {
+                "manager_action": decision.action,
+                "manager_reason": decision.reason,
+                "challenge": decision.challenge,
+                "alternative": decision.alternative,
+                "authority_impact": decision.authority_impact,
+                "source": decision.source,
+                "raised_at": time.time(),
+            }
+        now = time.time()
+        try:
+            raised_at = float(challenge.get("raised_at") or now)
+        except (TypeError, ValueError):
+            raised_at = now
+        challenge["adjudicated_at"] = now
+        challenge["revision_latency_seconds"] = max(0.0, now - raised_at)
+        action = str(challenge.get("manager_action") or "revise").strip().lower()
+        if action not in {"keep", "revise", "replace", "ask_operator"}:
+            action = "revise"
+        challenge["manager_action"] = action
+        outcome["plan_challenge"] = challenge
+        item_id = str(outcome.get("item_id") or "")
+        self._emit({
+            "type": EventType.LIFE_MANAGER_PLAN_CHALLENGE_DECIDED,
+            "item_id": item_id,
+            **challenge,
+            "text": (
+                f"Manager chose {action} after later evidence challenged the plan: "
+                f"{str(challenge.get('challenge') or '')[:240]}"
+            ),
+        })
+        if action == "ask_operator" and item_id:
+            try:
+                from ...core.operator_decision import build_operator_decision
+
+                item = next(
+                    row for row in self.memory.backlog.all() if row.id == item_id
+                )
+                question = (
+                    "Please decide whether this operator-owned constraint may change: "
+                    + str(challenge.get("challenge") or outcome.get("review_reason") or "")
+                ).strip()
+                card = build_operator_decision(
+                    item_id=item.id,
+                    title=item.title,
+                    reason=str(challenge.get("manager_reason") or ""),
+                    question=question,
+                    recommendation="Keep the current operator-owned constraint.",
+                    project_id=self.memory.root.name,
+                )
+                self.memory.backlog.update(
+                    item.id,
+                    status="paused_operator",
+                    pending_question=question,
+                    operator_decision=card,
+                )
+                self._emit({
+                    "type": EventType.LIFE_OPERATOR_QUESTION_PENDING,
+                    "item_id": item.id,
+                    "title": item.title,
+                    "question": question,
+                    "agent_layer": "manager",
+                })
+            except Exception:  # noqa: BLE001 - stop path still fails closed
+                log.exception("failed to persist operator-owned plan challenge")
+        return action
 
     def run(self) -> dict[str, Any]:
         """Drive missions until a stop condition. Returns a summary."""
@@ -477,8 +585,8 @@ class LifeSupervisor(
             if (
                 self.config.continuous
                 and self.config.continuous_objective
-                and self._effective_full_paper_gate(self._artifact_root())
-                and self._journal_has_full_paper_gate_success()
+                and self._effective_final_certification_gate(self._artifact_root())
+                and self._journal_has_final_certification()
             ):
                 self._emit_status(
                     "auto-stop: EMNLP gate passes, project complete"
@@ -518,16 +626,24 @@ class LifeSupervisor(
                         ):
                             continue
                         sleep_s = self._enter_pause_backoff()
-                        self._emit({
-                            "type": "life.planner.deferred",
-                            "reason": "waiting for operator answer",
-                            "item_ids": [item.id for item in pending_questions],
-                            "suggested_sleep_s": sleep_s,
-                            "agent_layer": "planner",
-                        })
-                        self._emit_status(
-                            "planner deferred: waiting for operator answer"
-                        )
+                        if should_report_pending_wait(
+                            self.memory.root,
+                            pending_questions,
+                        ):
+                            self._emit({
+                                "type": "life.planner.deferred",
+                                "reason": "waiting for operator answer",
+                                "item_ids": [item.id for item in pending_questions],
+                                "suggested_sleep_s": sleep_s,
+                                "agent_layer": "planner",
+                            })
+                            self._emit_status(
+                                "Argus is waiting for your answer on: "
+                                + "; ".join(
+                                    str(item.pending_question).strip()
+                                    for item in pending_questions[:3]
+                                )
+                            )
                         stopped_by = "pending_operator_question"
                         break
                     gate_reason = self._planner_cycle_gate_reason()
@@ -540,12 +656,19 @@ class LifeSupervisor(
                         self._emit_status(gate_reason)
                         stopped_by = gate_reason
                         break
+                    bounded_completion = self._bounded_completion_reason()
+                    if bounded_completion:
+                        self._emit_status(
+                            f"auto-stop: {bounded_completion}"
+                        )
+                        stopped_by = "project_done"
+                        break
                     # Auto-stop: if the EMNLP gate already passes, the
                     # project is done — don't ask the planner to invent
                     # more work.
                     if (
-                        self.config.full_paper_gate
-                        and self._journal_has_full_paper_gate_success()
+                        self.config.final_certification_gate
+                        and self._journal_has_final_certification()
                     ):
                         self._emit_status(
                             "planner: project done — EMNLP gate passes"
@@ -618,6 +741,18 @@ class LifeSupervisor(
                 stopped_by = "auth_failure"
                 break
             if outcome.get("status") == "replan_requested":
+                manager_action = self._adjudicate_mission_challenge(outcome)
+                if manager_action == "keep":
+                    self._emit_status(
+                        "Manager retained the current plan after reviewing the challenge"
+                    )
+                    continue
+                if manager_action == "ask_operator":
+                    self._emit_status(
+                        "Manager held the challenged plan for an operator-owned decision"
+                    )
+                    stopped_by = "operator_decision_required"
+                    break
                 gate_reason = self._planner_cycle_gate_reason()
                 if gate_reason:
                     self._emit({
@@ -832,7 +967,9 @@ class LifeSupervisor(
         if lifecycle_block is not None:
             return lifecycle_block
 
-        return self._run_one(item)
+        result = self._run_one(item)
+        self._vertical_resolved = False
+        return result
 
     def _budget_global_root(self) -> Path:
         configured = getattr(self.memory, "global_root", None)
@@ -848,7 +985,7 @@ class LifeSupervisor(
         """Retire stale paper-final tasks when the active vertical is bounded.
 
         ``scope:final_submission`` only has meaning when the active vertical's
-        completion gate is ``full_paper``. If a stale default ``research`` state
+        completion gate requires final certification. If a stale default ``research`` state
         caused the planner to enqueue a final-submission proof for a
         Manager-authored bounded domain (for example ``perf_tuning``), do not
         spend another engineer/reviewer round proving the paper pipeline is
@@ -857,12 +994,12 @@ class LifeSupervisor(
         """
         if self._planner_scope_from_item(item) != _PLANNER_SCOPE_FINAL_SUBMISSION:
             return None
-        if self._effective_full_paper_gate(self._artifact_root()):
+        if self._effective_final_certification_gate(self._artifact_root()):
             return None
 
         reason = (
             "skipped stale final_submission task: active vertical completion "
-            "gate is not full_paper"
+            "gate is not certified"
         )
         self.memory.backlog.update(
             item.id,
@@ -978,6 +1115,26 @@ class LifeSupervisor(
             })
             return False
         try:
+            from ...core.metrics import metrics_root_for_project, record_metric
+
+            record_metric(
+                metrics_root_for_project(self.memory.root),
+                "goal.planning",
+                labels={"status": str(status)},
+                fields={
+                    "delivery_id": event["delivery_id"],
+                    "project_id": self.memory.root.name,
+                    "project_done": bool(details.get("project_done", False)),
+                    "task_count": int(details.get("task_count", 0) or 0),
+                    "enqueued_tasks": int(details.get("enqueued_tasks", 0) or 0),
+                    "skipped_duplicate_tasks": int(
+                        details.get("skipped_duplicate_tasks", 0) or 0
+                    ),
+                },
+            )
+        except Exception:  # noqa: BLE001 - metrics never own planner delivery
+            log.debug("goal planning metric skipped", exc_info=True)
+        try:
             record = mark_planner_verdict_delivered(self.memory.root, record)
         except OSError as exc:
             self._emit({
@@ -1077,7 +1234,10 @@ class LifeSupervisor(
     def _publish_mission_completion_message(self, event: dict[str, Any]) -> None:
         """Tell the operator a Team mission ended without another model call."""
         try:
-            from ...core.operator_messages import publish_operator_message
+            from ...core.operator_messages import (
+                publish_operator_message,
+                render_operator_update,
+            )
 
             project = getattr(self.memory, "project", None)
             life_dir = getattr(project, "root", None) or getattr(self.memory, "root", None)
@@ -1105,7 +1265,50 @@ class LifeSupervisor(
                     result += f" · review={review}"
             else:
                 status = str(event.get("status") or event.get("outcome_class") or "ended")
-                result = f"Team ended · {title} · {status}"
+                reason = str(
+                    event.get("stop_reason")
+                    or event.get("failure_reason")
+                    or "The mission ended without a verified result."
+                ).strip()
+                next_action = str(event.get("next_action") or "").strip()
+                operator_question = str(
+                    event.get("operator_question") or ""
+                ).strip()
+                from ...core.autonomy import assess_operator_intervention
+
+                intervention = assess_operator_intervention(
+                    question=(
+                        operator_question
+                        or next_action
+                        if status in {"blocked", "paused_operator"}
+                        else ""
+                    ),
+                    reason=reason,
+                    next_action=next_action,
+                    planner_report={
+                        "authority_impact": (
+                            "operator" if status == "paused_operator" else ""
+                        )
+                    },
+                )
+                text = render_operator_update(
+                    title=title,
+                    status=status,
+                    reason=reason,
+                    next_action=next_action,
+                    user_action_required=intervention.required,
+                )
+                publish_operator_message(
+                    life_dir,
+                    text=text,
+                    message_id=f"mission-result-{item_id}-{status}",
+                    event_fields={
+                        "mission_result": True,
+                        "item_id": item_id,
+                        "success": False,
+                    },
+                )
+                return
             if final_submission_certified:
                 continuation = (
                     "The final submission passed independent review."

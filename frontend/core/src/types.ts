@@ -65,6 +65,10 @@ export interface BacklogItem {
   orphan_retries?: number;
   deps?: string[];
   acceptance_check?: string;
+  plan_hypothesis?: string;
+  goal_contribution?: string;
+  expected_regressions?: string;
+  decision_rule?: string;
   non_goals?: string[];
   outcome?: MissionOutcomeDimensions;
 }
@@ -197,6 +201,10 @@ export interface MissionDagNode {
   branch_id: string;
   parent_branch_id: string | null;
   acceptance_check?: string;
+  plan_hypothesis?: string;
+  goal_contribution?: string;
+  expected_regressions?: string;
+  decision_rule?: string;
   non_goals?: string[];
 }
 
@@ -270,7 +278,7 @@ export interface MissionStorageView {
 }
 
 export interface MissionView {
-  schema_version: 2;
+  schema_version: 3;
   bootstrapped?: boolean;
   mission: {
     id: string;
@@ -296,6 +304,7 @@ export interface MissionView {
   storage: MissionStorageView;
   achievement: MissionAchievement | null;
   review: { status: string; reason: string; rejected_attempts: number };
+  frontier: { change: string; summary: string; updated_at: number };
   outcome: Partial<MissionOutcomeDimensions>;
   last_event_ts: number;
   updated_at: number;

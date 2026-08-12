@@ -148,6 +148,7 @@ def test_is_pid_running_excludes_unreaped_linux_zombie() -> None:
 
 
 def test_is_pid_running_dead_pid() -> None:
+    # Above Linux's maximum configurable pid_max and invalid on other platforms.
     assert is_pid_running(2_147_483_647) is False
 
 

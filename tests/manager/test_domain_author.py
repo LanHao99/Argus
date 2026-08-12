@@ -93,6 +93,21 @@ def test_vertical_prompt_keeps_math_routes_inside_builtin_math():
     assert "they are not competing verticals" in prompt
 
 
+def test_vertical_prompts_do_not_treat_one_paper_reading_as_research_pipeline():
+    task = "Read this existing paper, explain it, and give me a concise summary."
+    fast = build_fast_vertical_decision_prompt(
+        task,
+        verticals_with_purpose=VERTICAL_PURPOSES,
+    )
+    grounded = build_vertical_decision_prompt(
+        task,
+        verticals_with_purpose=VERTICAL_PURPOSES,
+    )
+
+    assert "not for reading, explaining, critiquing, or summarizing one existing paper" in fast
+    assert "belongs on the SELF route before vertical selection" in grounded
+
+
 def test_vertical_prompt_composes_chemistry_with_research() -> None:
     prompt = build_vertical_decision_prompt(
         "Run autonomous chemistry research and produce a paper",
@@ -116,6 +131,45 @@ def test_vertical_prompt_does_not_escalate_bounded_repo_fix_to_new_domain() -> N
     assert "capability VERTICAL" in prompt
     assert "workflow_mode" in prompt
     assert "software" in prompt
+
+
+def test_new_domain_starts_with_real_work_not_process_ceremony() -> None:
+    prompt = build_vertical_decision_prompt(
+        "Optimize an unfamiliar inference runtime.",
+        verticals_with_purpose=VERTICAL_PURPOSES,
+    )
+
+    assert "Do not author intake, inventory, planning, or certification-only stages" in prompt
+    assert "first stage must implement or measure" in prompt
+
+
+def test_vertical_prompt_preserves_explicit_operator_actions() -> None:
+    prompt = build_vertical_decision_prompt(
+        "Download the BF16 model, quantize it, and run local inference.",
+        verticals_with_purpose=VERTICAL_PURPOSES,
+    )
+
+    assert "Preserve every concrete operator action" in prompt
+    assert "must not replace them with cleanup" in prompt
+    assert "authorizes a real attempt within policy" in prompt
+    assert "Match the operator's requested ACTION" in prompt
+    assert "quoted commit titles, logs, filenames, or error text" in prompt
+    assert "never turn those quoted subjects into implementation work" in prompt
+
+
+def test_vertical_prompts_do_not_use_software_as_performance_catch_all() -> None:
+    task = "Continuously optimize an MLX inference runtime on Apple Silicon."
+    fast = build_fast_vertical_decision_prompt(
+        task,
+        verticals_with_purpose=VERTICAL_PURPOSES,
+    )
+    grounded = build_vertical_decision_prompt(
+        task,
+        verticals_with_purpose=VERTICAL_PURPOSES,
+    )
+
+    assert "not specialized hardware/runtime performance research" in fast
+    assert "author a new domain" in grounded
 
 
 def test_fast_vertical_prompt_is_tool_free_and_route_only() -> None:
@@ -189,6 +243,40 @@ def test_vertical_parser_rejects_domain_on_non_research_workflow() -> None:
     assert decision is None
 
 
+def test_vertical_parser_accepts_in_place_data_domain_adaptation() -> None:
+    decision = parse_vertical_decision(
+        json.dumps({
+            "choice": "existing",
+            "vertical": "regulated_localization",
+            "stages": [
+                "terminology_lock",
+                "translation",
+                "regulatory_review",
+                "layout_qa",
+                "linguistic_qa",
+                "release",
+            ],
+            "workflow_mode": "staged",
+            "execution_task": "Localize and release the regulated product UI.",
+            "rationale": "the matching one-stage domain is materially underfit",
+        }),
+        known_verticals=VERTICALS,
+        existing_data_domains=["regulated_localization"],
+    )
+
+    assert decision is not None
+    assert decision.choice == "existing"
+    assert decision.vertical == "regulated_localization"
+    assert decision.adapted_stages == (
+        "terminology_lock",
+        "translation",
+        "regulatory_review",
+        "layout_qa",
+        "linguistic_qa",
+        "release",
+    )
+
+
 def test_fast_vertical_parser_sends_new_or_uncertain_work_to_grounding() -> None:
     route = parse_fast_vertical_decision(
         json.dumps({
@@ -214,7 +302,28 @@ def test_grounded_vertical_prompt_has_bounded_inspection_and_no_rendering_work()
     assert "choose Live View artifacts" in prompt
     assert "expand the Engineer task" in prompt
     assert "presentations" not in prompt
-    assert "execution_task" not in prompt
+    assert "EXECUTION_TASK=<complete standalone objective>" in prompt
+
+
+def test_vertical_prompts_prefer_matching_formal_project_domain() -> None:
+    kwargs = {
+        "verticals_with_purpose": VERTICAL_PURPOSES,
+        "existing_data_domains": ["apple_mlx_inference"],
+        "existing_data_domain_summaries": {
+            "apple_mlx_inference": (
+                "status=formal; Apple Silicon MLX/Metal deployment and inference optimization"
+            )
+        },
+    }
+
+    fast = build_fast_vertical_decision_prompt("Optimize MiniMax H3 on M4 Pro", **kwargs)
+    grounded = build_vertical_decision_prompt("Optimize MiniMax H3 on M4 Pro", **kwargs)
+
+    for prompt in (fast, grounded):
+        assert "status=formal" in prompt
+        assert "Apple Silicon MLX/Metal deployment" in prompt
+    assert "choose it over a broader built-in" in fast
+    assert "choose it before a broader built-in" in grounded
 
 
 def test_a_string_of_earlier_stages_is_not_rendered_letter_by_letter() -> None:
@@ -235,6 +344,7 @@ def test_a_string_of_earlier_stages_is_not_rendered_letter_by_letter() -> None:
     prompt = build_stage_decision_prompt(
         current_stage="delivery",
         next_stage="",
+        later_stages=[],
         earlier_stages="scope",
         checklist_md="- x",
         review=review,

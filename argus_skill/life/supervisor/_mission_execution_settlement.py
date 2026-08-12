@@ -165,6 +165,7 @@ class MissionExecutionSettlementMixin:
                         target_stage=state.pipeline_stage_at_start,
                         reason=guard_reason,
                         rolled_back_by="supervisor_dynamic_plan_guard",
+                        evidence_root=self._project_workdir(),
                     )
                     guard_applied = True
                 except Exception:  # noqa: BLE001
@@ -199,6 +200,32 @@ class MissionExecutionSettlementMixin:
         state.stage_transition = stage_transition
         state.stage_action = stage_action
         state.planner_bounded_node = planner_bounded_node
+
+        review_status = str(
+            getattr(outcome, "final_review_status", "") or ""
+        ).strip().lower()
+        if (
+            self._item_is_stage_closing(item)
+            and review_status == "done"
+            and state.pipeline_stage_at_start
+        ):
+            try:
+                from ...core.stage_certificate import record_stage_review
+
+                record_stage_review(
+                    state_root=self.memory.root,
+                    project_root=self._artifact_root(),
+                    stage=state.pipeline_stage_at_start,
+                    item=item,
+                    manager_action=stage_action or "hold",
+                    manager_reason=(
+                        str(stage_transition.get("reason") or "")
+                        if isinstance(stage_transition, dict)
+                        else ""
+                    ),
+                )
+            except Exception:  # noqa: BLE001 - certificate is observability/control aid
+                log.exception("life supervisor: failed to record stage review certificate")
 
     def _maybe_short_circuit_for_stage_transition(
         self, state: _MissionRunState,
@@ -363,6 +390,62 @@ class MissionExecutionSettlementMixin:
         operator_question = str(
             getattr(outcome, "operator_question", "") or ""
         ).strip()
+        if operator_question:
+            from ...core.autonomy import (
+                assess_operator_intervention,
+                technical_continuation,
+            )
+
+            planner_report = dict(
+                getattr(outcome, "final_planner_report", {}) or {}
+            )
+            intervention = assess_operator_intervention(
+                question=operator_question,
+                reason=str(getattr(outcome, "final_review_reason", "") or ""),
+                next_action=str(getattr(outcome, "final_review_next_action", "") or ""),
+                planner_report=planner_report,
+            )
+            if not intervention.required:
+                continuation = technical_continuation(
+                    question=operator_question,
+                    reason=str(
+                        getattr(outcome, "final_review_reason", "") or ""
+                    ),
+                    next_action=str(
+                        getattr(outcome, "final_review_next_action", "") or ""
+                    ),
+                )
+                planner_report.update({
+                    "forward_progress": False,
+                    "plan_signal": "reconsider",
+                    "challenge": str(
+                        planner_report.get("challenge")
+                        or getattr(outcome, "final_review_reason", "")
+                        or operator_question
+                    ),
+                    "alternative": continuation,
+                    "authority_impact": "technical",
+                    "auto_continued": True,
+                })
+                outcome.final_planner_report = planner_report
+                outcome.operator_question = ""
+                self._emit({
+                    "type": EventType.LIFE_MANAGER_PLAN_CHALLENGE_DECIDED,
+                    "item_id": item.id,
+                    "manager_action": "replace",
+                    "manager_reason": intervention.reason,
+                    "challenge": operator_question,
+                    "alternative": continuation,
+                    "authority_impact": "technical",
+                    "source": "pragmatic_autonomy_policy",
+                    "text": (
+                        "Argus kept a reversible technical choice inside the team "
+                        "instead of interrupting the operator."
+                    ),
+                })
+                operator_question = ""
+                if status in {"blocked", "replan_requested"}:
+                    status = "replan_requested"
         research_pause = status in {
             "research_incomplete",
             "paused_no_breakthrough",
@@ -402,6 +485,67 @@ class MissionExecutionSettlementMixin:
             resumable=resumable,
         )
 
+        manager_decision = getattr(item, "manager_decision", {}) or {}
+        learned_candidate = bool(
+            isinstance(manager_decision, dict)
+            and manager_decision.get("learned_vertical_status") == "candidate"
+        )
+        if learned_candidate:
+            from ...verticals._data_domain import (
+                promote_data_domain,
+                record_data_domain_failure,
+            )
+
+            vertical = str(manager_decision.get("vertical") or "")
+            review_status = str(
+                getattr(outcome, "final_review_status", "") or ""
+            ).strip().lower()
+            review_source = str(
+                getattr(outcome, "final_review_source", "") or ""
+            ).strip().lower()
+            if success and review_status == "done" and review_source == "reviewer":
+                try:
+                    promoted = promote_data_domain(
+                        self.memory.root,
+                        self._budget_global_root(),
+                        vertical,
+                        review_reason=str(
+                            getattr(outcome, "final_review_reason", "") or ""
+                        ),
+                    )
+                except OSError as exc:
+                    log.exception(
+                        "life supervisor: learned vertical promotion failed"
+                    )
+                    self._emit({
+                        "type": "life.learned_vertical.promotion_failed",
+                        "vertical": vertical,
+                        "error": f"{type(exc).__name__}: {exc}",
+                    })
+                    promoted = False
+                if promoted:
+                    manager_decision = dict(manager_decision)
+                    manager_decision["learned_vertical_status"] = "formal"
+                    self.memory.backlog.update(
+                        item.id,
+                        manager_decision=manager_decision,
+                    )
+                    self._emit({
+                        "type": "life.learned_vertical.promoted",
+                        "vertical": vertical,
+                    })
+            elif not success:
+                try:
+                    record_data_domain_failure(
+                        self.memory.root,
+                        vertical,
+                        reason=state.stop_reason or status,
+                    )
+                except OSError:
+                    log.exception(
+                        "life supervisor: learned vertical failure note could not be saved"
+                    )
+
         # Update backlog row. A bounded research cycle that did not achieve its
         # persisted success target is resumable, not a success or terminal failure.
         if success:
@@ -409,6 +553,7 @@ class MissionExecutionSettlementMixin:
         elif status == "blocked" and operator_question:
             from ...core.operator_decision import build_operator_decision
 
+            decision_root = self.memory.root
             evidence = list(getattr(item, "context_refs", None) or [])
             if str(getattr(item, "acceptance_check", "") or "").strip():
                 evidence.append({
@@ -424,6 +569,7 @@ class MissionExecutionSettlementMixin:
                     getattr(outcome, "final_review_next_action", "") or ""
                 ),
                 evidence=evidence,
+                project_id=decision_root.name,
             )
             # Status and the authority-bearing question must reach disk in one
             # backlog transaction. Keep the row nonterminal so dependency
@@ -596,6 +742,34 @@ class MissionExecutionSettlementMixin:
             report=getattr(outcome, "final_planner_report", {}) or {},
         )
 
+        planner_report = dict(
+            getattr(outcome, "final_planner_report", {}) or {}
+        )
+        plan_challenge = dict(getattr(outcome, "plan_challenge", {}) or {})
+        try:
+            from ...core.metrics import metrics_root_for_project, record_metric
+
+            forward_progress = planner_report.get("forward_progress")
+            record_metric(
+                metrics_root_for_project(self.memory.root),
+                "goal.mission",
+                labels={"status": status},
+                fields={
+                    "project_id": self.memory.root.name,
+                    "item_id": item.id,
+                    "accepted": bool(success),
+                    "forward_progress": (
+                        forward_progress
+                        if isinstance(forward_progress, bool)
+                        else None
+                    ),
+                    "replan_requested": bool(state.replan_requested),
+                    "plan_signal": str(planner_report.get("plan_signal") or ""),
+                    "elapsed_seconds": float(state.elapsed or 0.0),
+                },
+            )
+        except Exception:  # noqa: BLE001 - metrics never own settlement
+            log.debug("goal mission metric skipped", exc_info=True)
         cost_sink = state.cost_sink
         scientist_totals = cost_sink.scientist_totals()
         scientist_usage_by_model = cost_sink.scientist_usage_by_model_snapshot()
@@ -613,6 +787,8 @@ class MissionExecutionSettlementMixin:
             "status": status,
             "outcome_class": mission_outcome_class(status=status, success=success),
             "outcome": state.outcome_dimensions,
+            "planner_report": planner_report,
+            "plan_challenge": plan_challenge,
             "rounds": state.rounds,
             "elapsed_seconds": state.elapsed,
             "cost_usd": state.usd,
@@ -640,6 +816,9 @@ class MissionExecutionSettlementMixin:
                 else ""
             ),
             "failure_reason": state.err if kind == "mission_failed" else "",
+            "operator_question": str(
+                getattr(outcome, "operator_question", "") or ""
+            ).strip(),
             "agent_layer": "engineer",
             "engineer_model": self.engineer_model,
             "reviewer_model": self.reviewer_model,
@@ -680,6 +859,7 @@ class MissionExecutionSettlementMixin:
             ),
             "final_submission_certified": final_submission_certified,
             "final_submission_signature": final_submission_signature,
+            "research_result": getattr(outcome, "research_result", None),
             "repair_capability": {
                 "capability_id": str(state.repair_capability.get("capability_id") or ""),
                 "authorization_id": str(
@@ -716,6 +896,8 @@ class MissionExecutionSettlementMixin:
                 or getattr(outcome, "reason", "")
                 or ""
             ),
+            "planner_report": planner_report,
+            "plan_challenge": plan_challenge,
             "expected_plan_id": item.plan_id,
             "expected_plan_version": item.plan_version,
             "context_packet": (

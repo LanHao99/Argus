@@ -195,6 +195,11 @@ def _ensure_manager_runner(chat_state: dict[str, Any], mem: Any) -> Any:
             manager_session_root=str(session_root) if session_root else None,
             project_state_dir=str(session_root) if session_root else None,
             global_root=str(mem.global_root),
+            skills_dir=os.environ.get(
+                "ARGUS_SKILL_SKILLS_DIR",
+                str(Path(mem.global_root) / "skills"),
+            ),
+            manager_memory=mem,
             life_dir=getattr(mem, "root", None),
             stop_event=None,
         )
@@ -234,7 +239,8 @@ def _maybe_name_session(
     *,
     suggested_name: str = "",
     replacing: bool = False,
-) -> None:
+    promote_task_name: bool = False,
+) -> str:
     """Name the current session after its first real task (once, fail-soft).
 
     A resumed session keeps its original name (``session_named`` is already
@@ -251,25 +257,37 @@ def _maybe_name_session(
     renaming when the session's stated purpose is replaced is the same event the
     Manager already resets the pipeline for.
     """
-    if chat_state.get("session_named") and not replacing:
-        return
+    provisional = str(chat_state.get("_provisional_session_name") or "").strip()
+    if (
+        chat_state.get("session_named")
+        and not replacing
+        and not (promote_task_name and provisional)
+    ):
+        return ""
     sid = chat_state.get("session_id")
     gr = chat_state.get("global_root")
     if not sid or gr is None:
-        return
+        return ""
     try:
         from ..core.session import read_session_meta, touch_session
 
         persisted = read_session_meta(gr, sid)
         if persisted is not None and persisted.display_name.strip() and not replacing:
-            chat_state["session_named"] = True
-            return
+            if not (
+                promote_task_name
+                and provisional
+                and persisted.display_name.strip() == provisional
+            ):
+                chat_state["session_named"] = True
+                chat_state.pop("_provisional_session_name", None)
+                return ""
+            replacing = True
         name = (
             _derive_session_name(suggested_name, limit=32)
             or _derive_session_name(task_text)
         )
         if not name:
-            return
+            return ""
         if replacing:
             # touch_session only fills an *empty* name, so it silently cannot
             # rename. A replacement has to go through the update path.
@@ -282,8 +300,10 @@ def _maybe_name_session(
         else:
             touch_session(gr, sid, display_name=name)
         chat_state["session_named"] = True
+        chat_state.pop("_provisional_session_name", None)
+        return name
     except Exception:  # noqa: BLE001 — naming is cosmetic, never block the task
-        pass
+        return ""
 
 
 def _emit_manager_event(mem: Any, event: dict[str, Any]) -> None:
@@ -305,7 +325,7 @@ def _manager_current_stage(manager: Any) -> str:
         return ""
 
 
-def _accepts_keyword(fn: Any, name: str) -> bool:
+def _accepts_parameter(fn: Any, name: str) -> bool:
     try:
         parameters = signature(fn).parameters.values()
     except (TypeError, ValueError):
@@ -489,6 +509,11 @@ class PreparedManagerHandoff:
             "domain": getattr(division, "domain", ""),
             "workflow_mode": getattr(division, "workflow_mode", "staged"),
             "kind": getattr(division, "kind", ""),
+            "learned_vertical_status": getattr(
+                division,
+                "learned_vertical_status",
+                "",
+            ),
             "stages": list(getattr(division, "stages", []) or []),
             "reason": getattr(division, "headline", lambda: "")(),
             "text": (
@@ -546,16 +571,13 @@ def prepare_manager_execution_task(
     })
     try:
         runner = (ensure_runner or _ensure_manager_runner)(chat_state, mem)
-        manager = getattr(runner, "manager", None) if runner is not None else None
+        if runner is None:
+            raise ManagerHandoffError("Manager runner unavailable")
+        manager = runner.manager
         if manager is None:
-            from ..manager import Manager
+            raise ManagerHandoffError("runner was constructed without a Manager")
 
-            manager = Manager(
-                project_root=getattr(mem, "project_root", None) or Path.cwd(),
-                runner=None,
-            )
-
-        if root_task_id is None or not _accepts_keyword(
+        if root_task_id is None or not _accepts_parameter(
             manager.decide_vertical,
             "root_task_id",
         ):
@@ -739,8 +761,9 @@ def manager_continuous_handoff(
     ensure_runner: Callable[[dict[str, Any], Any], Any] | None = None,
     cancelled: Callable[[], bool] | None = None,
     prepared_handoff: PreparedManagerHandoff | None = None,
+    persist: Callable[[str, Any], Any] | None = None,
 ) -> str:
-    """Atomically enable a Manager-authored continuous objective."""
+    """Atomically enable a Manager-authored continuous objective and first task."""
     from ..daemon.state import (
         compare_and_swap_continuous_config,
         read_continuous_state,
@@ -806,6 +829,11 @@ def manager_continuous_handoff(
                 prepared.execution_task or body,
                 replacing=True,
             )
+        if persist is not None:
+            committed["persisted"] = persist(
+                prepared.execution_task,
+                committed["division"],
+            )
 
     from ._session_ops import (
         clear_manager_pipeline_yield,
@@ -822,6 +850,9 @@ def manager_continuous_handoff(
                 expected=expected,
                 enabled=True,
                 objective=prepared.execution_task,
+                open_ended=bool(
+                    chat_state.get("_continuous_open_ended", expected.open_ended)
+                ),
                 before_write=_commit,
             )
     except Exception as exc:
@@ -854,47 +885,6 @@ def manager_continuous_handoff(
             "source": "manager_intent_replacement",
         })
     return prepared.execution_task
-
-
-_DO_NOT_RUN_MARKERS: tuple[str, ...] = (
-    # Chinese (simplified + a few traditional variants)
-    "不要运行", "不要執行", "不要执行", "不要启动", "不要啟動",
-    "别运行", "別運行", "别启动", "別啟動", "不要跑", "不要派发", "不要分派",
-    "不要运行任务", "只做状态检查", "只检查状态", "只看状态", "只查状态",
-    "状态检查", "狀態檢查", "请回复状态正常", "請回復狀態正常",
-    # English
-    "do not run", "don't run", "dont run",
-    "do not execute", "don't execute", "dont execute",
-    "do not start", "don't start", "dont start",
-    "do not launch", "don't launch", "do not dispatch", "do not spawn",
-    "status check only", "status-only", "status only",
-    "just check status", "only check status",
-)
-
-
-def looks_like_do_not_run_request(text: str) -> bool:
-    """True iff ``text`` explicitly forbids running / asks for status only.
-
-    This protects the failure fallback: classification errors normally bias to
-    task dispatch, but an explicit no-run instruction must remain side-effect
-    free. A successful classification always takes precedence.
-    """
-    if not text:
-        return False
-    raw = str(text)
-    low = raw.lower()
-    for marker in _DO_NOT_RUN_MARKERS:
-        if marker in raw or marker.lower() in low:
-            return True
-    return False
-
-
-_DO_NOT_RUN_SAFE_REPLY = (
-    "[not dispatched] The Manager could not classify this request and your "
-    "message asks not to run anything (status-only / do-not-run), so no task was "
-    "queued. Use /status for pipeline state or /doctor to diagnose; rephrase "
-    "without the do-not-run constraint if you actually want to queue work."
-)
 
 
 def _fallback_request_excerpt(body: str) -> str:
@@ -1072,9 +1062,9 @@ def manager_triage(mem: Any, body: str, chat_state: dict[str, Any],
             "phase_cb": _runner_phase,
             "route": route,
         }
-        if _accepts_keyword(runner.chat_reply_if_conversational, "self_mode"):
+        if _accepts_parameter(runner.chat_reply_if_conversational, "self_mode"):
             triage_kwargs["self_mode"] = "reply" if quick_reply else "inspect"
-        if root_task_id is not None and _accepts_keyword(
+        if root_task_id is not None and _accepts_parameter(
             runner.chat_reply_if_conversational,
             "root_task_id",
         ):
@@ -1094,17 +1084,10 @@ def manager_triage(mem: Any, body: str, chat_state: dict[str, Any],
                 chat_state["last_thread_id"] = getattr(runner, "last_thread_id", None)
                 return captured[0] if captured else empty_reply
         except Exception as exc:  # noqa: BLE001 — triage failure
-            if looks_like_do_not_run_request(body):
-                return _DO_NOT_RUN_SAFE_REPLY
             if is_pre_provider_refusal_error(exc):
                 return _pre_provider_refusal_reply(exc, body)
             return None
-    except Exception as exc:  # noqa: BLE001 — triage failure: bias to task ("never drop
-        # work to a bad classify") UNLESS the operator explicitly forbade running
-        # (status-only / do-not-run). Dispatching a real mission on a classify we
-        # could not even complete is how a status request reached the Engineer.
-        if looks_like_do_not_run_request(body):
-            return _DO_NOT_RUN_SAFE_REPLY
+    except Exception as exc:  # noqa: BLE001 — triage failure: bias to task
         if is_pre_provider_refusal_error(exc):
             return _pre_provider_refusal_reply(exc, body)
         return None
@@ -1135,8 +1118,7 @@ def _extract_chat_reply_text(msg: str) -> str:
     return msg
 
 __all__ = [
-    "_DO_NOT_RUN_SAFE_REPLY",
-    "_accepts_keyword",
+    "_accepts_parameter",
     "_MANAGER_RUNNER_UNAVAILABLE",
     "ManagerHandoffError",
     "ManagerHandoffSupersededError",
@@ -1148,7 +1130,6 @@ __all__ = [
     "_life_dir_for",
     "_manager_divide_user_task",
     "_maybe_name_session",
-    "looks_like_do_not_run_request",
     "manager_execution_task",
     "manager_bounded_handoff",
     "manager_continuous_handoff",

@@ -109,7 +109,7 @@ class _StageDecisionMixin:
             )
         from ..core.models import RunnerOptions
 
-        _backend = self._session or self.runner
+        _backend = self.runner or self._session
 
         def _run_exec(prompt: str) -> Any:  # noqa: ANN401
             return gateway_run_exec(
@@ -118,8 +118,9 @@ class _StageDecisionMixin:
                 options=RunnerOptions(
                     model=_manager_model(),
                     reasoning_effort=_manager_reasoning_effort(),
-                    working_dir=str(root),
-                    dangerous_yolo=True,
+                    working_dir=str(self.execution_workdir),
+                    dangerous_yolo=False,
+                    sandbox_mode="read-only",
                     skip_git_repo_check=True,
                 ),
                 run_label="manager-stage",
@@ -174,7 +175,7 @@ class _StageDecisionMixin:
                 time.sleep(1.0)
                 raw = self._extract_answer_safe(run_exec(prompt))
             if str(raw or "").strip() and manager_checkpoint_refresh_required(
-                root,
+                self.execution_workdir,
                 raw,
                 manifest_root=self.manager_session_root,
             ):
@@ -185,12 +186,12 @@ class _StageDecisionMixin:
                 if str(candidate or "").strip():
                     raw = candidate
             if str(raw or "").strip() and manager_checkpoint_refresh_required(
-                root,
+                self.execution_workdir,
                 raw,
                 manifest_root=self.manager_session_root,
             ):
                 raw = repair_manager_checkpoint_response(
-                    root,
+                    self.execution_workdir,
                     raw,
                     manifest_root=self.manager_session_root,
                 )
@@ -238,33 +239,11 @@ class _StageDecisionMixin:
                 stage_order=order,
                 checklist_contract=checklist_contract,
             )
-            from ..core.external_completion_gate import external_completion_gate_issue
-            from ..core.research_contract import resolve_research_target_level
-            from ..skills.vertical_select import resolve_vertical
-
-            _completion_vertical = resolve_vertical(root)
-            _research_target_level = resolve_research_target_level(root)
-            final_decision = final_stage_completion_decision(
-                review,
-                current_stage=cur,
-                stage_order=order,
-                vertical=_completion_vertical,
-                mission_scope=mission_scope,
-                research_target_level=_research_target_level,
-                checklist_contract=checklist_contract,
-                completion_blocker=external_completion_gate_issue(root),
-                trigger_diagnostic=decision.diagnostic,
-                trigger_reason=decision.reason,
-            )
-            if final_decision is not None and (
-                not open_ended or decision.action == "hold"
-            ):
-                decision = final_decision
             rework_decision = external_completion_gate_rework_decision(
                 review,
                 current_stage=cur,
                 stage_order=order,
-                project_root=root,
+                project_root=self.execution_workdir,
             )
             if rework_decision is not None:
                 decision = rework_decision
@@ -273,10 +252,16 @@ class _StageDecisionMixin:
                 decision,
                 current_stage=cur,
                 stage_order=order,
-                project_root=root,
+                project_root=self.execution_workdir,
             )
+            from ..skills.vertical_select import resolve_workflow_mode
             from .stage_decider import StageDecision
-            if planner_wait_reconciliation and decision.action in {"advance", "complete"}:
+
+            if (
+                planner_wait_reconciliation
+                and resolve_workflow_mode(root) != "direct"
+                and decision.action in {"advance", "complete"}
+            ):
                 decision = StageDecision(
                     "hold",
                     cur,
@@ -294,7 +279,7 @@ class _StageDecisionMixin:
 
             live_decided, _live_view = parse_live_view_response(raw)
             live_view = apply_manager_rendering_response(
-                root,
+                self.execution_workdir,
                 raw,
                 manifest_root=self.manager_session_root,
             )
@@ -327,37 +312,52 @@ class _StageDecisionMixin:
 
         from ..core.external_completion_gate import external_completion_gate_issue
         from ..core.research_contract import resolve_research_target_level
-        from ..skills.vertical_select import resolve_vertical
+        from ..skills.vertical_select import (
+            resolve_vertical,
+            resolve_workflow_mode,
+        )
 
         _completion_vertical = resolve_vertical(root)
         _research_target_level = resolve_research_target_level(root)
-        # A completed transition must not inherit the contradictory reason from
-        # an overridden hold decision. Record the completion trigger instead.
-        final_decision = final_stage_completion_decision(
-            review,
-            current_stage=cur,
-            stage_order=order,
-            vertical=_completion_vertical,
-            mission_scope=mission_scope,
-            research_target_level=_research_target_level,
-            checklist_contract=checklist_contract,
-            completion_blocker=external_completion_gate_issue(root),
-            trigger_diagnostic=(
-                "" if decision.action == "hold" else decision.diagnostic
-            ),
-            trigger_reason=completion_trigger_reason(
-                decision.action, decision.reason
-            ),
-        )
-        if final_decision is not None and (
-            not open_ended or decision.action == "hold"
-        ):
-            decision = final_decision
+        if decision.action == "complete":
+            final_decision = final_stage_completion_decision(
+                review,
+                current_stage=cur,
+                stage_order=order,
+                vertical=_completion_vertical,
+                mission_scope=mission_scope,
+                project_root=root,
+                research_target_level=_research_target_level,
+                checklist_contract=checklist_contract,
+                completion_blocker=external_completion_gate_issue(
+                    self.execution_workdir
+                ),
+                trigger_diagnostic=decision.diagnostic,
+                trigger_reason=completion_trigger_reason(
+                    decision.action,
+                    decision.reason,
+                ),
+                allow_early_completion=(
+                    not open_ended
+                    and resolve_workflow_mode(root) == "direct"
+                ),
+            )
+            if final_decision is not None:
+                decision = final_decision
+            else:
+                from .stage_decider import StageDecision
+
+                decision = StageDecision(
+                    "hold",
+                    cur,
+                    "Manager completion rejected by the project completion contract",
+                    "manager_completion_rejected",
+                )
         rework_decision = external_completion_gate_rework_decision(
             review,
             current_stage=cur,
             stage_order=order,
-            project_root=root,
+            project_root=self.execution_workdir,
         )
         if rework_decision is not None:
             decision = rework_decision
@@ -366,12 +366,16 @@ class _StageDecisionMixin:
             decision,
             current_stage=cur,
             stage_order=order,
-            project_root=root,
+            project_root=self.execution_workdir,
         )
 
         from .stage_decider import StageDecision
 
-        if planner_wait_reconciliation and decision.action in {"advance", "complete"}:
+        if (
+            planner_wait_reconciliation
+            and resolve_workflow_mode(root) != "direct"
+            and decision.action in {"advance", "complete"}
+        ):
             decision = StageDecision(
                 "hold",
                 cur,
@@ -388,6 +392,7 @@ class _StageDecisionMixin:
     ) -> "StageTransition":  # noqa: F821
         """Phase 5: write the chosen action to ``PIPELINE_STATE.json`` and return a
         ``StageTransition`` describing what happened."""
+        from ..skills.stage_machine import StageCompletionError
         from ..skills.stage_machine import (
             advance_stage as _advance,
         )
@@ -402,7 +407,14 @@ class _StageDecisionMixin:
         if decision.action == "advance":
             try:
                 _advance(root, target_stage=decision.target_stage,
-                         reason=decision.reason, advanced_by="manager")
+                         reason=decision.reason, advanced_by="manager",
+                         evidence_root=self.execution_workdir)
+            except StageCompletionError as exc:
+                return StageTransition(
+                    "hold", cur, str(exc), current_stage=cur,
+                    source="stage_completion_gate_hold",
+                    diagnostic="stage_completion_gate_failed",
+                )
             except ValueError:
                 return StageTransition(
                     "hold", cur, "illegal advance target", current_stage=cur,
@@ -415,7 +427,14 @@ class _StageDecisionMixin:
 
         if decision.action == "complete":
             try:
-                _complete(root, reason=decision.reason, completed_by="manager")
+                _complete(root, reason=decision.reason, completed_by="manager",
+                          evidence_root=self.execution_workdir)
+            except StageCompletionError as exc:
+                return StageTransition(
+                    "hold", cur, str(exc), current_stage=cur,
+                    source="stage_completion_gate_hold",
+                    diagnostic="stage_completion_gate_failed",
+                )
             except ValueError:
                 return StageTransition(
                     "hold", cur, "illegal final-stage completion", current_stage=cur,
@@ -429,7 +448,8 @@ class _StageDecisionMixin:
         if decision.action == "rollback":
             try:
                 _rollback(root, target_stage=decision.target_stage,
-                          reason=decision.reason, rolled_back_by="manager")
+                          reason=decision.reason, rolled_back_by="manager",
+                          evidence_root=self.execution_workdir)
             except ValueError:
                 return StageTransition(
                     "hold", cur, "illegal rollback target", current_stage=cur,
@@ -461,7 +481,7 @@ class _StageDecisionMixin:
         continuous_objective: str = "",
         mission_scope: str = "",
     ) -> "StageTransition":  # noqa: F821
-        """Independently decide advance / hold / rollback for the pipeline stage,
+        """Independently decide advance / hold / rollback / complete for the stage,
         then WRITE it. The Manager is the SOLE writer of
         ``current_stage`` — the reviewer/planner only ADVISE (via ``review`` /
         ``planner_verdict``); the engineer never edits stage state.
@@ -552,6 +572,7 @@ class _StageDecisionMixin:
         try:
             cur_idx = order.index(cur) if cur in order else -1
             next_stage = order[cur_idx + 1] if 0 <= cur_idx < len(order) - 1 else ""
+            later_stages = order[cur_idx + 1 :] if 0 <= cur_idx < len(order) - 1 else []
             earlier = order[:cur_idx] if cur_idx > 0 else []
             from ..roles.prompts import resolve_role_prompt
             from ..roles.prompts.manager import (
@@ -571,12 +592,13 @@ class _StageDecisionMixin:
                 build_stage_decision_prompt(
                     current_stage=cur,
                     next_stage=next_stage,
+                    later_stages=later_stages,
                     earlier_stages=earlier,
                     checklist_md=prompt_context.stage_checklist,
                     review=review,
                     planner_verdict=planner_verdict,
                     rendering_block=manager_rendering_prompt(
-                        root,
+                        self.execution_workdir,
                         review=review,
                         manifest_root=self.manager_session_root,
                     ),
@@ -590,7 +612,12 @@ class _StageDecisionMixin:
                 ),
             )
 
-            raw = self._run_stage_model(run_exec, prompt, root, root_task_id)
+            raw = self._run_stage_model(
+                run_exec,
+                prompt,
+                self.execution_workdir,
+                root_task_id,
+            )
 
             decision = self._parse_and_finalize_stage_decision(
                 raw,

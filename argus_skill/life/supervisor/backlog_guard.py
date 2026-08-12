@@ -20,7 +20,8 @@ back door becomes another way in through the front.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, Callable
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +46,13 @@ def decision_evidence(decision: Any) -> dict[str, Any]:
     """
     if decision is None:
         return {}
-    fields = ("vertical", "stage", "workflow_mode", "research_target_level")
+    fields = (
+        "vertical",
+        "stage",
+        "workflow_mode",
+        "research_target_level",
+        "learned_vertical_status",
+    )
     evidence = {
         name: str(getattr(decision, name, "") or "").strip()
         for name in fields
@@ -98,7 +105,14 @@ def describe_undecided(items: Any) -> str:
     )
 
 
-def ensure_manager_decision(memory: Any, item: Any, chat_state: Any = None) -> Any:
+def ensure_manager_decision(
+    memory: Any,
+    item: Any,
+    chat_state: Any = None,
+    *,
+    manager: Any = None,
+    ensure_runner: Callable[[dict[str, Any], Any], Any] | None = None,
+) -> Any:
     """Route *item* through the Manager if it never was, and record that.
 
     Returns the item, with its objective replaced by the Manager's execution
@@ -107,7 +121,38 @@ def ensure_manager_decision(memory: Any, item: Any, chat_state: Any = None) -> A
     diagnostic surface already reports the item as undecided.
     """
     if not needs_manager_decision(item):
-        return item
+        decision = getattr(item, DECISION_KEY, None)
+        vertical = (
+            str(decision.get("vertical") or "").strip()
+            if isinstance(decision, dict)
+            else ""
+        )
+        if not vertical:
+            return item
+        from pathlib import Path
+
+        from ...skills.vertical_select import UnknownVerticalError, require_vertical
+        from ...verticals._data_domain import materialize_learned_data_domain
+
+        state_root = Path(getattr(memory, "root", ".")).expanduser()
+        learned_root = Path(
+            getattr(memory, "global_root", None) or state_root
+        ).expanduser()
+        materialize_learned_data_domain(
+            learned_root,
+            state_root,
+            vertical,
+        )
+        try:
+            require_vertical(vertical, state_root)
+        except UnknownVerticalError:
+            log.warning(
+                "backlog guard: routed vertical %s is unavailable; rerouting item %s",
+                vertical,
+                getattr(item, "id", "?"),
+            )
+        else:
+            return item
 
     objective = str(getattr(item, "objective", "") or "").strip()
     if not objective:
@@ -120,11 +165,19 @@ def ensure_manager_decision(memory: Any, item: Any, chat_state: Any = None) -> A
         return item
 
     try:
+        manager_runner = (
+            SimpleNamespace(manager=manager) if manager is not None else None
+        )
         prepared = prepare_manager_execution_task(
             memory,
             objective,
             dict(chat_state or {}),
             root_task_id=str(getattr(item, "id", "") or "") or None,
+            ensure_runner=(
+                (lambda _state, _memory: manager_runner)
+                if manager_runner is not None
+                else ensure_runner
+            ),
         )
         execution_task = prepared.execution_task
         evidence = decision_evidence(getattr(prepared, "decision", None)) or {

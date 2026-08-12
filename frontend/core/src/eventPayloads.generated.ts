@@ -182,6 +182,7 @@ export interface LifeMissionCompletedEvent extends EventMsg {
   "repair_capability"?: Record<string, unknown> | null;
   "stop_kind"?: "budget_exhausted" | "provider_cooldown" | "provider_fence" | "daemon_shutdown" | "operator_pause" | "operator_abort" | "backend_unavailable" | "transient_error" | "permanent_error" | null;
   "recoverable"?: boolean;
+  "operator_question"?: string;
 }
 
 export interface RoundStartEvent extends EventMsg {
@@ -230,6 +231,14 @@ export interface RoundReviewCompletedEvent extends EventMsg {
   "next_action"?: string;
   "operator_question"?: string;
   "review_source"?: string;
+  "forward_progress"?: boolean;
+  "plan_signal"?: string;
+  "plan_challenge"?: string;
+  "plan_alternative"?: string;
+  "authority_impact"?: string;
+  "frontier_change"?: string;
+  "frontier_summary"?: string;
+  "session_signal"?: Record<string, unknown>;
   "text"?: string;
   "review_skipped"?: boolean;
   "prompt_block_stats"?: Record<string, unknown>;
@@ -324,6 +333,21 @@ export interface LifeManagerIntentCompletedEvent extends EventMsg {
   "reason"?: string;
 }
 
+export interface LifeManagerPlanChallengeDecidedEvent extends EventMsg {
+  type: "life.manager.plan_challenge.decided";
+  payload_schema_version?: 1;
+  "item_id": string;
+  "manager_action": "keep" | "revise" | "replace" | "ask_operator";
+  "manager_reason"?: string;
+  "challenge": string;
+  "alternative"?: string;
+  "authority_impact"?: string;
+  "raised_at"?: number;
+  "adjudicated_at": number;
+  "revision_latency_seconds"?: number;
+  "text"?: string;
+}
+
 export interface LifeInboxDrainedEvent extends EventMsg {
   type: "life.inbox.drained";
   payload_schema_version?: 1;
@@ -347,6 +371,31 @@ export interface LifeOperatorQuestionAnsweredEvent extends EventMsg {
   "continuation_item_id": string;
   "question": string;
   "manager_decision": string;
+  "decision_id"?: string;
+  "decision_revision"?: number | null;
+  "campaign_generation"?: number | null;
+  "stopped"?: boolean;
+}
+
+export interface RoleSessionTurnEvent extends EventMsg {
+  type: "role.session.turn";
+  payload_schema_version?: 1;
+  "role": "planner" | "engineer" | "reviewer";
+  "policy": "fresh" | "mission" | "rolling";
+  "action": "fresh" | "resumed" | "rotated";
+  "rotation_reason"?: string;
+  "round_index"?: number;
+  "planning_cycle"?: number;
+  "session_id"?: string;
+  "turns_on_session"?: number;
+  "input_tokens"?: number;
+  "cached_input_tokens"?: number;
+  "duration_ms"?: number;
+  "prompt_chars"?: number;
+  "prompt_estimated_tokens"?: number;
+  "capsule_path"?: string;
+  "signal_kind"?: "repeated_contradiction" | "reviewer_confusion" | "quality_degradation";
+  "signal_detail"?: string;
 }
 
 export interface EngineerProgressEvent extends EventMsg {
@@ -813,9 +862,11 @@ export interface EventPayloadByType {
   "life.planner.task_added": LifePlannerTaskAddedEvent;
   "life.planner.task_skipped": LifePlannerTaskSkippedEvent;
   "life.manager.intent.completed": LifeManagerIntentCompletedEvent;
+  "life.manager.plan_challenge.decided": LifeManagerPlanChallengeDecidedEvent;
   "life.inbox.drained": LifeInboxDrainedEvent;
   "life.operator_question.pending": LifeOperatorQuestionPendingEvent;
   "life.operator_question.answered": LifeOperatorQuestionAnsweredEvent;
+  "role.session.turn": RoleSessionTurnEvent;
   "engineer.progress": EngineerProgressEvent;
   "skill.created": SkillCreatedEvent;
   "skill.updated": SkillUpdatedEvent;

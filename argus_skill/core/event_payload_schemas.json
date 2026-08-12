@@ -235,7 +235,8 @@
             null
           ]
         },
-        "recoverable": {"type": "boolean"}
+        "recoverable": {"type": "boolean"},
+        "operator_question": {"type": "string"}
       }
     },
     "round.start": {
@@ -315,6 +316,14 @@
         "next_action": {"type": "string"},
         "operator_question": {"type": "string"},
         "review_source": {"type": "string"},
+        "forward_progress": {"type": "boolean"},
+        "plan_signal": {"type": "string"},
+        "plan_challenge": {"type": "string"},
+        "plan_alternative": {"type": "string"},
+        "authority_impact": {"type": "string"},
+        "frontier_change": {"type": "string"},
+        "frontier_summary": {"type": "string"},
+        "session_signal": {"type": "object"},
         "text": {"type": "string"},
         "review_skipped": {"type": "boolean"},
         "prompt_block_stats": {"type": "object"},
@@ -457,6 +466,22 @@
         "reason": {"type": "string"}
       }
     },
+    "life.manager.plan_challenge.decided": {
+      "version": 1,
+      "required": ["item_id", "manager_action", "challenge", "adjudicated_at"],
+      "properties": {
+        "item_id": {"type": "string", "minLength": 1},
+        "manager_action": {"type": "string", "enum": ["keep", "revise", "replace", "ask_operator"]},
+        "manager_reason": {"type": "string"},
+        "challenge": {"type": "string"},
+        "alternative": {"type": "string"},
+        "authority_impact": {"type": "string"},
+        "raised_at": {"type": "number"},
+        "adjudicated_at": {"type": "number"},
+        "revision_latency_seconds": {"type": "number", "minimum": 0},
+        "text": {"type": "string"}
+      }
+    },
     "life.inbox.drained": {
       "version": 1,
       "required": ["count", "messages"],
@@ -482,7 +507,33 @@
         "item_id": {"type": "string", "minLength": 1},
         "continuation_item_id": {"type": "string", "minLength": 1},
         "question": {"type": "string", "minLength": 1},
-        "manager_decision": {"type": "string", "minLength": 1}
+        "manager_decision": {"type": "string", "minLength": 1},
+        "decision_id": {"type": "string"},
+        "decision_revision": {"type": ["integer", "null"], "minimum": 1},
+        "campaign_generation": {"type": ["integer", "null"], "minimum": 0},
+        "stopped": {"type": "boolean"}
+      }
+    },
+    "role.session.turn": {
+      "version": 1,
+      "required": ["role", "policy", "action"],
+      "properties": {
+        "role": {"type": "string", "enum": ["planner", "engineer", "reviewer"]},
+        "policy": {"type": "string", "enum": ["fresh", "mission", "rolling"]},
+        "action": {"type": "string", "enum": ["fresh", "resumed", "rotated"]},
+        "rotation_reason": {"type": "string"},
+        "round_index": {"type": "integer", "minimum": 0},
+        "planning_cycle": {"type": "integer", "minimum": 0},
+        "session_id": {"type": "string"},
+        "turns_on_session": {"type": "integer", "minimum": 0},
+        "input_tokens": {"type": "integer", "minimum": 0},
+        "cached_input_tokens": {"type": "integer", "minimum": 0},
+        "duration_ms": {"type": "integer", "minimum": 0},
+        "prompt_chars": {"type": "integer", "minimum": 0},
+        "prompt_estimated_tokens": {"type": "integer", "minimum": 0},
+        "capsule_path": {"type": "string"},
+        "signal_kind": {"type": "string", "enum": ["repeated_contradiction", "reviewer_confusion", "quality_degradation"]},
+        "signal_detail": {"type": "string"}
       }
     },
     "engineer.progress": {

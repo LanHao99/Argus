@@ -203,6 +203,7 @@ class LifeWorkerBootMixin:
         """Resolve the boot-time continuous config, suppression, and the live
         ``continuous_provider`` the supervisor polls each cycle.
         """
+        requested_open_ended = rf_state.cfg.continuous_open_ended
         # A fresh (non-resume) daemon must NOT adopt the project's persisted
         # continuous campaign — the operator manages daemons, and a daemon that
         # was not asked to resume has no business silently continuing a campaign
@@ -239,7 +240,7 @@ class LifeWorkerBootMixin:
         # boot state lifts the suppression and is then honored live).
         rf_state.latest_continuous_state = rf_state.boot
 
-        def _continuous_provider() -> tuple[bool, str]:
+        def _continuous_provider() -> tuple[bool, str, bool]:
             current = read_continuous_state(rf_state.runtime_root)
             rf_state.latest_continuous_state = current
             enabled, objective = current.enabled, current.objective
@@ -256,17 +257,22 @@ class LifeWorkerBootMixin:
                         enabled=False,
                         objective=objective,
                     )
-                return False, objective
+                return False, objective, current.open_ended
             if not self._operator_stop_requested:
                 self._adopted_continuous_generation = current.generation if enabled else None
-            return enabled, objective
+            return enabled, objective, current.open_ended
 
         rf_state.continuous_provider = _continuous_provider
 
         # Seed continuous config from disk (or CLI flags).
-        rf_state.init_continuous, rf_state.init_objective = rf_state.continuous_provider()
+        (
+            rf_state.init_continuous,
+            rf_state.init_objective,
+            rf_state.cfg.continuous_open_ended,
+        ) = rf_state.continuous_provider()
         rf_state.init_source_state = rf_state.latest_continuous_state
         if rf_state.cfg.continuous:
+            rf_state.cfg.continuous_open_ended = requested_open_ended
             # CLI flags override disk. Persist only after Manager has produced a
             # role-clean execution handoff.
             rf_state.init_continuous = True
@@ -337,19 +343,9 @@ class LifeWorkerBootMixin:
                 }
             )
             try:
-                # Prefer the rf_state.runner's single Manager instance (manager backend);
-                # fall back to an ad-hoc Manager only when the rf_state.runner has none
-                # (e.g. the memory rf_state.runner in tests).
-                mgr = getattr(rf_state.runner, "manager", None)
+                mgr = rf_state.runner.manager
                 if mgr is None:
-                    from ..manager import Manager
-
-                    mgr = Manager(
-                        project_root=rf_state.cfg.project_workdir or rf_state.runtime_root,
-                        runner=getattr(rf_state.runner, "manager_backend", None)
-                        or getattr(rf_state.runner, "backend", None),
-                        manager_session_root=rf_state.runtime_root,
-                    )
+                    raise RuntimeError("runner was constructed without a Manager")
                 from ..manager.front_door import (
                     require_manager_execution_task,
                 )
@@ -361,10 +357,10 @@ class LifeWorkerBootMixin:
                 decision = mgr.decide_vertical(source_objective)
                 execution_task = require_manager_execution_task(decision)
                 prior_vertical = _persisted_vertical(
-                    rf_state.cfg.project_workdir or rf_state.runtime_root
+                    rf_state.runtime_root
                 )
                 prior_domain = _persisted_domain(
-                    rf_state.cfg.project_workdir or rf_state.runtime_root
+                    rf_state.runtime_root
                 )
                 prior_handoff = _read_manager_handoff_identity(rf_state.runtime_root)
                 if prior_handoff is None and prior_vertical:
@@ -378,7 +374,7 @@ class LifeWorkerBootMixin:
                 next_vertical_name = str(getattr(decision, "vertical", "") or "").strip()
                 next_domain_name = str(getattr(decision, "domain", "") or "").strip()
                 replacement_intent = _daemon_objective_requires_stage_reset(
-                    project_root=rf_state.cfg.project_workdir or rf_state.runtime_root,
+                    project_root=rf_state.runtime_root,
                     prior_vertical=prior_vertical_name,
                     next_vertical=next_vertical_name,
                     prior_domain=str(prior_domain or ""),
@@ -421,6 +417,7 @@ class LifeWorkerBootMixin:
                         expected=expected_state,
                         enabled=target_enabled,
                         objective=execution_task,
+                        open_ended=rf_state.cfg.continuous_open_ended,
                         before_write=_commit_decision,
                     )
                 if swapped:
@@ -443,6 +440,11 @@ class LifeWorkerBootMixin:
                         "vertical": getattr(division, "vertical", ""),
                         "domain": getattr(division, "domain", ""),
                         "kind": getattr(division, "kind", ""),
+                        "learned_vertical_status": getattr(
+                            division,
+                            "learned_vertical_status",
+                            "",
+                        ),
                         "stages": list(getattr(division, "stages", []) or []),
                         "text": "manager completed daemon objective handoff",
                     }
@@ -499,9 +501,11 @@ class LifeWorkerBootMixin:
                             "failed to persist Manager execution handoff"
                         )
                     else:
-                        rf_state.init_continuous, rf_state.init_objective = (
-                            rf_state.continuous_provider()
-                        )
+                        (
+                            rf_state.init_continuous,
+                            rf_state.init_objective,
+                            rf_state.cfg.continuous_open_ended,
+                        ) = rf_state.continuous_provider()
                         rf_state.sink.append(
                             {
                                 "type": "life.manager.intent.superseded",
@@ -526,9 +530,11 @@ class LifeWorkerBootMixin:
                             }
                         )
                 else:
-                    rf_state.init_continuous, rf_state.init_objective = (
-                        rf_state.continuous_provider()
-                    )
+                    (
+                        rf_state.init_continuous,
+                        rf_state.init_objective,
+                        rf_state.cfg.continuous_open_ended,
+                    ) = rf_state.continuous_provider()
                 rf_state.cfg.continuous_objective = rf_state.init_objective
                 log.error("daemon Manager handoff failed; objective not dispatched: %s", exc)
                 rf_state.handoff_failure = f"{type(exc).__name__}: {exc}"
@@ -548,7 +554,7 @@ class LifeWorkerBootMixin:
         """Construct the ``LifeSupervisor`` after Manager vertical selection."""
         # Build supervisor policy only AFTER Manager.divide() has persisted the
         # vertical.  Mission typing is fail-safe (non-paper until a
-        # ``full_paper`` vertical is positively resolved), so constructing this
+        # ``certified`` vertical is positively resolved), so constructing this
         # before divide would incorrectly leave a brand-new paper campaign in
         # bounded mode for its whole daemon lifetime.
         sup_cfg = _build_supervisor_config(

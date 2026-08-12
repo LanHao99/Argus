@@ -11,6 +11,7 @@ import {
 import { spinnerFrame } from '../lib/soul';
 import { thinkingStatusLine } from '../../../core/src/thinking';
 import { slashCompletions, applyCompletion } from '../../../core/src/commands';
+import { isPromptRewriteShortcut } from '../../../core/src/shortcuts';
 import {
   formatStepSeconds,
   stepElapsedS,
@@ -36,6 +37,36 @@ import {
 } from '../lib/attachments';
 import { formatBytes } from '../lib/format';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
+
+interface RewriteShortcutEvent {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  preventDefault: () => void;
+}
+
+interface RewriteShortcutState {
+  value: string;
+  disabled: boolean;
+  pending: boolean;
+  rewriting: boolean;
+  onRewrite?: (draft: string) => void;
+}
+
+export function handlePromptRewriteShortcut(
+  event: RewriteShortcutEvent,
+  state: RewriteShortcutState,
+): boolean {
+  if (!state.onRewrite || !isPromptRewriteShortcut(event.key, event.ctrlKey, event.metaKey)) {
+    return false;
+  }
+  event.preventDefault();
+  const draft = state.value.trim();
+  if (draft && !state.disabled && !state.pending && !state.rewriting) {
+    state.onRewrite(draft);
+  }
+  return true;
+}
 
 /**
  * The Manager front-door as a single conversational box. The operator just
@@ -224,6 +255,13 @@ export function ChatBox({
     // While an IME is composing, Enter confirms a candidate and the arrows page
     // through them. Acting here would send the message mid-word.
     if (isImeComposing(e)) return;
+    if (handlePromptRewriteShortcut(e, {
+      value,
+      disabled,
+      pending,
+      rewriting,
+      onRewrite,
+    })) return;
     if (completionOpen) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -364,6 +402,7 @@ export function ChatBox({
           }}
           onPaste={onPasteFiles}
           onKeyDown={onKey}
+          aria-keyshortcuts="Control+R Meta+R"
           rows={1}
           disabled={disabled}
           aria-controls={completionOpen ? SLASH_COMPLETION_LISTBOX_ID : undefined}
@@ -378,8 +417,9 @@ export function ChatBox({
             type="button"
             onClick={() => onRewrite(value.trim())}
             disabled={disabled || pending || rewriting || !value.trim()}
-            title={t('chat.rewriteHint')}
+            title={`Ctrl/⌘+R · ${t('chat.rewriteHint')}`}
             aria-label={t('chat.rewriteLabel')}
+            aria-keyshortcuts="Control+R Meta+R"
             className="send-control h-9 shrink-0 rounded-full border-manager/70 bg-manager/10 px-3 text-xs font-medium text-manager hover:border-manager hover:bg-manager/20 disabled:opacity-40"
           >
             {rewriting ? `${spinnerFrame(thinkTick)} ${t('chat.rewriting')}` : t('chat.rewrite')}

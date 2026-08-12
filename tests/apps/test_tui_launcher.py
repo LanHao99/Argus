@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,7 @@ def test_launcher_execs_node_with_bundled_ink(monkeypatch, tmp_path: Path) -> No
     bundle.write_text("// bundle", encoding="utf-8")
     venv_bin = tmp_path / ".venv" / "bin"
     venv_bin.mkdir(parents=True)
-    backend = venv_bin / "argus-skill"
+    backend = venv_bin / ("argus-skill.exe" if os.name == "nt" else "argus-skill")
     backend.write_text("#!/bin/sh\n", encoding="utf-8")
     seen = {}
     monkeypatch.setattr(tui_launcher.sys, "executable", str(venv_bin / "python"))

@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import signal
+import subprocess
 import sys
 import time
 import uuid
@@ -15,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+from ..core.daemon_lock import WINDOWS_DAEMON_LOCK_OFFSET, is_pid_running
 from ..core.usage import format_usage_cost
 from ..life.supervisor import LifeBudget, global_daily_spend, global_daily_usage_summary
 
@@ -22,6 +24,11 @@ try:
     import fcntl
 except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None  # type: ignore[assignment]
+
+try:
+    import msvcrt
+except ImportError:  # pragma: no cover - POSIX
+    msvcrt = None  # type: ignore[assignment]
 
 log = logging.getLogger(__name__)
 _GLOBAL_DAILY_SPEND_IMPL = global_daily_spend
@@ -40,6 +47,7 @@ def _truthy_env(name: str, default: str = "1") -> bool:
 class ContinuousConfigState:
     enabled: bool = False
     objective: str = ""
+    open_ended: bool = True
     done_reason: str = ""
     done_at: str = ""
     generation: int = field(default=0, compare=False)
@@ -91,6 +99,18 @@ def daemon_drain_requested(life_dir: Path, *, pid: int) -> bool:
         return False
 
 
+def daemon_drain_pid(life_dir: Path) -> int | None:
+    """Return the PID still owning a persisted graceful-drain request."""
+    try:
+        payload = json.loads(
+            _daemon_drain_request_path(life_dir).read_text(encoding="utf-8")
+        )
+        pid = int(payload.get("pid") or 0) if isinstance(payload, dict) else 0
+        return pid if pid > 0 else None
+    except (FileNotFoundError, OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+
+
 def clear_daemon_drain_request(life_dir: Path, *, pid: int) -> None:
     """Remove the drain request only when it still targets ``pid``."""
     if not daemon_drain_requested(life_dir, pid=pid):
@@ -127,6 +147,7 @@ def _read_continuous_state_unlocked(life_dir: Path) -> ContinuousConfigState:
         return ContinuousConfigState(
             enabled=bool(data.get("enabled", False)),
             objective=_text(data.get("objective", "")),
+            open_ended=bool(data.get("open_ended", True)),
             done_reason=_text(data.get("done_reason", "")),
             done_at=_text(data.get("done_at", "")),
             generation=max(0, int(data.get("generation", 0) or 0)),
@@ -150,6 +171,7 @@ def write_continuous_config(
     *,
     enabled: bool,
     objective: str,
+    open_ended: bool | None = None,
     done_reason: str = "",
 ) -> None:
     objective = objective.strip()
@@ -162,6 +184,7 @@ def write_continuous_config(
             life_dir,
             enabled=enabled,
             objective=objective,
+            open_ended=(current.open_ended if open_ended is None else open_ended),
             done_reason=done_reason,
             generation=current.generation + 1,
         )
@@ -172,6 +195,7 @@ def _write_continuous_config_unlocked(
     *,
     enabled: bool,
     objective: str,
+    open_ended: bool,
     done_reason: str = "",
     done_at: str = "",
     generation: int,
@@ -182,6 +206,7 @@ def _write_continuous_config_unlocked(
     data = {
         "enabled": enabled,
         "objective": objective,
+        "open_ended": bool(open_ended),
         "generation": max(0, int(generation)),
     }
     if done_reason:
@@ -205,6 +230,7 @@ def compare_and_swap_continuous_config(
     expected: ContinuousConfigState,
     enabled: bool,
     objective: str,
+    open_ended: bool | None = None,
     done_reason: str = "",
     before_write: Callable[[], None] | None = None,
 ) -> bool:
@@ -222,6 +248,7 @@ def compare_and_swap_continuous_config(
             life_dir,
             enabled=enabled,
             objective=objective,
+            open_ended=(current.open_ended if open_ended is None else open_ended),
             done_reason=done_reason,
             generation=current.generation + 1,
         )
@@ -240,6 +267,7 @@ def disable_continuous_config(
             life_dir,
             enabled=False,
             objective=current.objective,
+            open_ended=current.open_ended,
             done_reason=done_reason,
             generation=generation,
         ):
@@ -254,6 +282,7 @@ def _same_continuous_state(
     return (
         left.enabled == right.enabled
         and left.objective == right.objective
+        and left.open_ended == right.open_ended
         and left.done_reason == right.done_reason
         and left.done_at == right.done_at
         and left.generation == right.generation
@@ -480,22 +509,20 @@ def read_daemon_status(life_dir: Path | None = None) -> DaemonStatus:
     from .health import read_daemon_health
 
     pid_path = _daemon_pid_path(life_dir)
-    if not pid_path.exists():
-        return DaemonStatus(
-            alive=False, pid=None, started_at_iso=None,
-            uptime_seconds=None, life_dir=life_dir, pid_path=pid_path,
-            health_state="stopped",
-        )
+    draining_owner = False
     try:
         pid = int(pid_path.read_text().strip())
-    except (OSError, ValueError):
-        return DaemonStatus(
-            alive=False, pid=None, started_at_iso=None,
-            uptime_seconds=None, life_dir=life_dir, pid_path=pid_path,
-            health_state="stopped",
-        )
+    except (FileNotFoundError, OSError, ValueError):
+        pid = daemon_drain_pid(life_dir) or 0
+        draining_owner = bool(pid and _process_alive(pid))
+        if not draining_owner:
+            return DaemonStatus(
+                alive=False, pid=None, started_at_iso=None,
+                uptime_seconds=None, life_dir=life_dir, pid_path=pid_path,
+                health_state="stopped",
+            )
     alive = _process_alive(pid)
-    if alive and _daemon_pid_lock_held(pid_path) is False:
+    if alive and not draining_owner and _daemon_pid_lock_held(pid_path) is False:
         alive = False
     started_iso: str | None = None
     backend: str | None = None
@@ -595,19 +622,11 @@ def wait_for_daemon_status(
 
 
 def _process_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
-    return True
+    return is_pid_running(pid)
 
 
 def _descendant_pids(root_pid: int) -> tuple[int, ...]:
-    """Return current descendants, deepest first, using Linux ``/proc``.
+    """Return current descendants, deepest first, using the host process table.
 
     Provider CLIs commonly create their own process groups/sessions, so killing
     only the daemon PID does not contain a forced stop.  A snapshot of the
@@ -618,27 +637,50 @@ def _descendant_pids(root_pid: int) -> tuple[int, ...]:
     try:
         entries = list(Path("/proc").iterdir())
     except OSError:
-        return ()
-    for entry in entries:
-        if not entry.name.isdigit():
-            continue
+        entries = []
+    if entries:
+        for entry in entries:
+            if not entry.name.isdigit():
+                continue
+            try:
+                status = (entry / "status").read_text(
+                    encoding="utf-8",
+                    errors="replace",
+                )
+            except OSError:
+                continue
+            parent = 0
+            for line in status.splitlines():
+                if line.startswith("PPid:"):
+                    try:
+                        parent = int(line.split(":", 1)[1].strip())
+                    except ValueError:
+                        parent = 0
+                    break
+            if parent > 0:
+                children.setdefault(parent, []).append(int(entry.name))
+    elif os.name != "nt":
+        ps = "/bin/ps" if Path("/bin/ps").is_file() else "/usr/bin/ps"
         try:
-            status = (entry / "status").read_text(
-                encoding="utf-8",
-                errors="replace",
+            result = subprocess.run(
+                [ps, "-axo", "pid=,ppid="],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=2.0,
             )
-        except OSError:
-            continue
-        parent = 0
-        for line in status.splitlines():
-            if line.startswith("PPid:"):
+        except (OSError, subprocess.SubprocessError):
+            result = None
+        if result is not None and result.returncode == 0:
+            for line in result.stdout.splitlines():
                 try:
-                    parent = int(line.split(":", 1)[1].strip())
-                except ValueError:
-                    parent = 0
-                break
-        if parent > 0:
-            children.setdefault(parent, []).append(int(entry.name))
+                    pid_text, parent_text = line.split()
+                    pid = int(pid_text)
+                    parent = int(parent_text)
+                except (TypeError, ValueError):
+                    continue
+                if parent > 0:
+                    children.setdefault(parent, []).append(pid)
 
     found: list[tuple[int, int]] = []
     stack = [(int(root_pid), 0)]
@@ -683,7 +725,28 @@ def _daemon_pid_lock_held(pid_path: Path) -> bool | None:
     ``None`` means the platform or filesystem could not answer reliably; the
     caller then keeps the conservative PID-only fallback.
     """
-    if fcntl is None:  # pragma: no cover - Windows fallback
+    if os.name == "nt":
+        if msvcrt is None:  # pragma: no cover - Windows safety net
+            return None
+        try:
+            fd = os.open(str(pid_path), os.O_RDWR)
+        except OSError:
+            return None
+        try:
+            try:
+                os.lseek(fd, WINDOWS_DAEMON_LOCK_OFFSET, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            except OSError:
+                return True
+            try:
+                os.lseek(fd, WINDOWS_DAEMON_LOCK_OFFSET, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
+            return False
+        finally:
+            os.close(fd)
+    if fcntl is None:  # pragma: no cover - safety net
         return None
     try:
         fd = os.open(str(pid_path), os.O_RDWR)
@@ -708,6 +771,33 @@ def _daemon_pid_lock_held(pid_path: Path) -> bool | None:
 def _same_daemon_alive(life_dir: Path, pid: int) -> bool:
     current = read_daemon_status(life_dir)
     return bool(current.alive and current.pid == pid)
+
+
+def request_daemon_stop(life_dir: Path | None = None) -> tuple[bool, int | None]:
+    """Request an immediate graceful stop without waiting for daemon exit.
+
+    This is the non-blocking control-plane primitive used by conversational
+    pause. The daemon's SIGTERM handler interrupts the active mission and exits;
+    callers separately disable continuous mode first so no later launch can
+    silently resume the campaign. PID identity is revalidated immediately
+    before signalling to avoid targeting a stale/reused pid-file value.
+    """
+    status = read_daemon_status(life_dir)
+    resolved_dir = status.life_dir
+    try:
+        (resolved_dir / DAEMON_UPGRADE_REQUEST_FILE).unlink(missing_ok=True)
+    except OSError:
+        pass
+    if not status.alive or status.pid is None:
+        return False, None
+    pid = status.pid
+    if not _same_daemon_alive(resolved_dir, pid):
+        return False, None
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError, OSError):
+        return False, pid
+    return True, pid
 
 
 def stop_daemon(
@@ -852,7 +942,8 @@ __all__ = [
     "continuous_mode_error", "format_budget_status",
     "read_continuous_config", "read_continuous_state",
     "read_daemon_status", "resolve_effective_budget",
-    "stop_daemon", "wait_for_daemon_status", "write_continuous_config",
+    "request_daemon_stop", "stop_daemon", "wait_for_daemon_status",
+    "write_continuous_config",
     "_daemon_log_path", "_daemon_pid_path", "_daemon_status_path",
     "_daemon_status_payload", "_new_boot_id", "_point_active_daemon_log",
     "_process_alive", "_redirect_std_to_log",

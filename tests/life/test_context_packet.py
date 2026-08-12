@@ -24,6 +24,10 @@ def test_context_packet_seals_engineer_and_reviewer_handoffs(tmp_path: Path) -> 
         scope="bounded",
         objective="Screen one candidate on public tasks.",
         acceptance_check="research/screen.json reports a binding pass/fail",
+        plan_hypothesis="The candidate screen can eliminate weak directions cheaply.",
+        goal_contribution="Reduce uncertainty before the expensive experiment.",
+        expected_regressions="Candidate count may fall sharply.",
+        decision_rule="Replace the screen if it fails to predict the binding test.",
         non_goals=["do not preregister", "do not run GPU inference"],
         context_refs=[
             {
@@ -58,14 +62,34 @@ def test_context_packet_seals_engineer_and_reviewer_handoffs(tmp_path: Path) -> 
     assert mission_payload["scope"] == "bounded"
     assert mission_payload["objective"] == "Screen one candidate on public tasks."
     assert mission_payload["acceptance_check"].endswith("binding pass/fail")
+    assert mission_payload["plan_hypothesis"].startswith("The candidate screen")
+    assert mission_payload["goal_contribution"].startswith("Reduce uncertainty")
+    assert mission_payload["expected_regressions"] == "Candidate count may fall sharply."
+    assert mission_payload["decision_rule"].startswith("Replace the screen")
     assert mission_payload["non_goals"] == [
         "do not preregister",
         "do not run GPU inference",
     ]
     assert mission_payload["context_refs"][0]["ref"] == "research/IDEA_CANDIDATES.md"
     assert "content_hash" not in mission_payload["context_refs"][0]
+    frontier_path = Path(mission_payload["frontier"]["path"])
+    frontier = json.loads(frontier_path.read_text(encoding="utf-8"))
+    assert frontier["objective"] == "Screen one candidate on public tasks."
+    assert frontier["current_hypothesis"].startswith("The candidate screen")
+    assert frontier["next_decision_point"].startswith("Replace the screen")
     assert (
-        not {"stage", "scope", "objective", "acceptance_check", "non_goals", "context_refs"}
+        not {
+            "stage",
+            "scope",
+            "objective",
+            "acceptance_check",
+            "plan_hypothesis",
+            "goal_contribution",
+            "expected_regressions",
+            "decision_rule",
+            "non_goals",
+            "context_refs",
+        }
         & latest.keys()
     )
     assert "sha256" not in engineer_payload["checkpoint"]
@@ -82,6 +106,14 @@ def test_context_packet_seals_engineer_and_reviewer_handoffs(tmp_path: Path) -> 
             reason="Artifact verified.",
             next_action="Planner may choose the next frontier.",
             operator_question="",
+            frontier_report={
+                "change": "uncertainty_reduced",
+                "summary": "The screen eliminated one weak direction.",
+                "resolved_obligations": ["screen candidate"],
+                "remaining_work": ["choose the next candidate"],
+                "uncertainty": "One candidate is now ruled out.",
+                "next_decision_point": "Choose or stop based on remaining candidates.",
+            },
         ),
         checkpoint_path=checkpoint,
     )
@@ -97,7 +129,12 @@ def test_context_packet_seals_engineer_and_reviewer_handoffs(tmp_path: Path) -> 
         "reason",
         "next_action",
         "operator_question",
+        "frontier_transition",
+        "frontier_disposition",
     }
+    frontier = json.loads(frontier_path.read_text(encoding="utf-8"))
+    assert frontier["history"][-1]["change"] == "uncertainty_reduced"
+    assert reviewed_payload["review"]["frontier_disposition"] == "continue"
     assert "engineer_summary" not in reviewed_payload
     assert "text" not in reviewed_payload["checkpoint"]
 
@@ -202,3 +239,23 @@ def test_planner_context_refs_reject_project_escape(tmp_path: Path) -> None:
             }],
             tmp_path,
         )
+
+
+def test_planner_context_refs_normalize_local_absolute_and_drop_external(
+    tmp_path: Path,
+) -> None:
+    local = tmp_path / "notes.md"
+    local.write_text("grounded", encoding="utf-8")
+    external = tmp_path.parent / "external-handoff.json"
+    external.write_text("runtime", encoding="utf-8")
+
+    hydrated = hydrate_task_context_refs(
+        [
+            {"kind": "wiki", "ref": str(local), "why": "local grounding"},
+            {"kind": "handoff", "ref": str(external), "why": "runtime state"},
+        ],
+        tmp_path,
+        discard_external=True,
+    )
+
+    assert [ref["ref"] for ref in hydrated] == ["notes.md"]

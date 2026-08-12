@@ -18,7 +18,7 @@ from ..event_catalog import EventType, canonical_event_type
 
 MISSION_VIEW_FILE = "mission-view.json"
 MISSION_VIEW_LOCK_FILE = "mission-view.lock"
-MISSION_VIEW_SCHEMA_VERSION = 2
+MISSION_VIEW_SCHEMA_VERSION = 3
 MISSION_TIMELINE_LIMIT = 120
 MISSION_ROLE_WORK_LIMIT_PER_ROLE = 40
 MISSION_BOOTSTRAP_MAX_BYTES = 8 * 1024 * 1024
@@ -76,6 +76,7 @@ def empty_mission_view() -> dict[str, Any]:
         },
         "achievement": None,
         "review": {"status": "", "reason": "", "rejected_attempts": 0},
+        "frontier": {"change": "", "summary": "", "updated_at": 0.0},
         "outcome": {},
         "last_event_ts": 0.0,
         "updated_at": 0.0,
@@ -112,9 +113,9 @@ def _read_unlocked(root: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return empty_mission_view()
     schema_version = payload.get("schema_version")
-    if schema_version not in {1, MISSION_VIEW_SCHEMA_VERSION}:
+    if schema_version not in {1, 2, MISSION_VIEW_SCHEMA_VERSION}:
         return empty_mission_view()
-    if schema_version == 1:
+    if schema_version in {1, 2}:
         payload["schema_version"] = MISSION_VIEW_SCHEMA_VERSION
         for key in (
             "hypotheses",
@@ -140,6 +141,7 @@ def _read_unlocked(root: Path) -> dict[str, Any]:
         storage.setdefault(key, value)
     payload.setdefault("learned_wiki_pages", [])
     payload.setdefault("role_work", [])
+    payload.setdefault("frontier", {"change": "", "summary": "", "updated_at": 0.0})
     payload.setdefault("outcome", {})
     for skill in payload.setdefault("learned_skills", []):
         if isinstance(skill, dict):
@@ -148,6 +150,29 @@ def _read_unlocked(root: Path) -> dict[str, Any]:
     mission = payload.setdefault("mission", {})
     mission.setdefault("campaign_started_at", None)
     mission.setdefault("campaign_elapsed_seconds", 0.0)
+    for role in payload.setdefault("roles", []):
+        if (
+            isinstance(role, dict)
+            and role.get("role") == "manager"
+            and role.get("status") == "error"
+            and role.get("label") == "Grounding failed"
+        ):
+            role["label"] = "Manager routing failed"
+    for row in payload.setdefault("timeline", []):
+        if (
+            isinstance(row, dict)
+            and row.get("type") == EventType.LIFE_MANAGER_INTENT_FAILED
+            and row.get("title") == "Grounding failed"
+        ):
+            row["title"] = "Manager routing failed"
+    for row in payload.setdefault("role_work", []):
+        if (
+            isinstance(row, dict)
+            and row.get("role") == "manager"
+            and row.get("status") == "error"
+            and row.get("title") == "Grounding failed"
+        ):
+            row["title"] = "Manager routing failed"
     achievement = payload.get("achievement")
     if (
         isinstance(achievement, dict)

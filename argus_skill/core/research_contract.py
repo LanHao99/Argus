@@ -90,30 +90,19 @@ def resolve_research_target_level(project_root: object) -> str | None:
     return normalize_research_target_level(payload.get("research_target_level"))
 
 
-def resolve_research_target_contract(
-    project_root: object,
+def research_target_contract(
+    *,
+    supported_levels: tuple[str, ...],
+    selected_level: str | None,
 ) -> ResearchTargetContract:
-    selected = resolve_research_target_level(project_root)
-    try:
-        from ..skills.vertical_select import resolve_checklist_vertical
-        from ..verticals._base import (
-            load_vertical,
-            vertical_research_target_levels,
-        )
-
-        vertical = resolve_checklist_vertical(project_root)
-        supported = (
-            tuple(vertical_research_target_levels(
-                load_vertical(vertical, project_root=project_root)
-            ))
-            if vertical is not None
-            else ()
-        )
-    except Exception:  # noqa: BLE001
-        supported = RESEARCH_TARGET_LEVELS if selected is not None else ()
+    """Build the generic target contract from a vertical-owned declaration."""
     return ResearchTargetContract(
-        supported_levels=supported,
-        selected_level=selected,
+        supported_levels=tuple(
+            level
+            for value in supported_levels
+            if (level := normalize_research_target_level(value)) is not None
+        ),
+        selected_level=normalize_research_target_level(selected_level),
     )
 
 
@@ -251,6 +240,17 @@ def research_completion_issue(
         # result and evidence checks above, but leave terminal novelty and
         # significance to final-submission missions.
         return ""
+    if result_class == "literature_review":
+        if novelty not in {"known", "not_applicable"}:
+            return "survey_novelty_must_be_not_applicable"
+        accepted_significance = {
+            "exploratory": {"exploratory", "publishable", "doctoral"},
+            "publishable": {"publishable", "doctoral"},
+            "doctoral": {"doctoral"},
+        }[target]
+        if significance in accepted_significance:
+            return ""
+        return f"survey_significance_below_{target}:{significance}"
     if target == "exploratory":
         if result_class not in _EXPLORATORY_TERMINAL_CLASSES:
             return f"result_class_not_exploratory_terminal:{result_class}"
@@ -293,8 +293,8 @@ __all__ = [
     "normalize_research_target_level",
     "research_completion_issue",
     "research_pause_status",
+    "research_target_contract",
     "research_target_env_override",
-    "resolve_research_target_contract",
     "resolve_research_target_level",
     "resolve_research_target_set_at",
 ]

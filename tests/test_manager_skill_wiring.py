@@ -1,15 +1,4 @@
-"""Manager ↔ skill library wiring + the planner-role-skill relocation bug.
-
-Covers the three things the operator asked for:
-
-1. The planner role skill now lives in ``builtin_skills/planner/`` (NOT
-   ``engineer/``), is still loaded by ``load_builtin_skill_text`` (the planner's
-   loader), and ``role_of_path`` no longer misclassifies it as an engineer skill.
-2. ``_ROLE_SUBDIRS`` (and the role pools) include ``manager``.
-3. The ``Manager`` takes an optional ``skill_store`` and injects its fixed role
-   skill (+ any matched adaptive block) into its stage-decision prompt; with no
-   ``skill_store`` (the default) the behaviour is unchanged (back-compat).
-"""
+"""Manager wiring for role-owned, on-demand Skill discovery."""
 
 from __future__ import annotations
 
@@ -62,7 +51,12 @@ def test_manager_in_role_subdirs_and_pools() -> None:
     assert "manager" in _ROLE_SUBDIRS
     assert ROLE_SKILL_POOLS["manager"] == frozenset({"manager"})
     # Manager sees every other role's standards as read-only references.
-    assert ROLE_CROSS_READ_POOLS["manager"] == frozenset({"engineer", "reviewer", "planner"})
+    assert ROLE_CROSS_READ_POOLS["manager"] == frozenset({
+        "engineer",
+        "reviewer",
+        "planner",
+        "self",
+    })
 
 
 def test_manager_role_skill_file_exists_and_loads() -> None:
@@ -76,16 +70,8 @@ def test_manager_role_skill_file_exists_and_loads() -> None:
     assert "never automatic" in compact
 
 
-def test_manager_role_context_does_not_require_adaptive_store() -> None:
-    manager = Manager(project_root=".", runner=None)
-    context = manager.role_context()
-    assert "Argus manager role skill" in context
-    assert "Runtime maintenance must use an isolated worktree" in context
-    assert "reply with ONE JSON" not in context
-
-
 # --------------------------------------------------------------------------
-# 3. Manager takes a skill_store and injects skills into its decision prompt
+# 3. Manager receives paths without preloading a Skill body
 # --------------------------------------------------------------------------
 class _StubReview:
     status = "continue"
@@ -109,6 +95,20 @@ class _CapturingRunExec:
         )
 
 
+class _CapturingStageRunner:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def run_exec(self, **kwargs) -> RunnerResult:
+        self.calls.append(kwargs)
+        return RunnerResult(
+            exit_code=0,
+            agent_messages=[
+                '{"action": "hold", "target_stage": "research", "reason": "stub"}'
+            ],
+        )
+
+
 def test_manager_accepts_skill_store_and_is_backward_compatible() -> None:
     # No skill_store (default) — the existing signature/behaviour is preserved.
     m_default = Manager(project_root=".", runner=None)
@@ -119,14 +119,20 @@ def test_manager_accepts_skill_store_and_is_backward_compatible() -> None:
     assert m_none.skill_store is None
 
 
-def test_manager_decision_prompt_carries_role_skill_when_store_present(
+def test_manager_decision_prompt_carries_paths_not_skill_body(
     tmp_path: Path,
 ) -> None:
-    from argus_skill.skills.store import SkillStore
+    from argus_skill.skills.store import Skill, SkillStore
 
-    # Empty store: the matched adaptive block is empty, but the FIXED role skill
-    # must still be injected ahead of the stage-decision prompt.
     store = SkillStore(tmp_path / "skills")
+    store.save(
+        Skill(
+            "Private Manager procedure",
+            "A reusable Manager procedure.",
+            "# Private\n\nDO NOT PRELOAD THIS MANAGER BODY",
+            path="manager/private-procedure.md",
+        )
+    )
     mgr = Manager(project_root=tmp_path, runner=object(), skill_store=store)
 
     cap = _CapturingRunExec()
@@ -136,12 +142,11 @@ def test_manager_decision_prompt_carries_role_skill_when_store_present(
 
     assert cap.prompts, "manager never built a stage-decision prompt"
     prompt = cap.prompts[0]
-    # The fixed manager role skill is prepended to the decision prompt.
-    assert "Argus manager role skill" in prompt
-    assert "Argus Manager Role" in prompt
-    # The decision contract is still present in the current named-line form.
-    assert "ACTION=advance|hold|rollback" in prompt
-    # The stub returned HOLD → no stage write, decision is a HOLD.
+    assert str(store.skills_dir.resolve()) in prompt
+    assert "Role: manager" in prompt
+    assert "DO NOT PRELOAD THIS MANAGER BODY" not in prompt
+    assert "Argus Manager Role" not in prompt
+    assert "ACTION=advance|hold|rollback|complete" in prompt
     assert decision.action == "hold"
 
 
@@ -153,6 +158,21 @@ def test_manager_decision_prompt_unchanged_without_store(tmp_path: Path) -> None
     mgr.decide_stage_transition(review=_StubReview(), project_root=tmp_path, run_exec=cap)
     assert cap.prompts
     assert "Argus manager role skill" not in cap.prompts[0]
+
+
+def test_manager_stage_decision_is_read_only(tmp_path: Path) -> None:
+    runner = _CapturingStageRunner()
+
+    decision = Manager(project_root=tmp_path, runner=runner).decide_stage_transition(
+        review=_StubReview(),
+        project_root=tmp_path,
+    )
+
+    assert decision.action == "hold"
+    call = runner.calls[0]
+    assert call["run_label"] == "manager-stage"
+    assert call["options"].sandbox_mode == "read-only"
+    assert call["options"].dangerous_yolo is False
 
 
 # --------------------------------------------------------------------------

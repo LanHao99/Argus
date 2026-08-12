@@ -35,6 +35,15 @@ def _exec(answer: str, exit_code: int = 0):
     return run_exec
 
 
+def _exec_sequence(*answers: str):
+    remaining = list(answers)
+
+    def run_exec(_prompt: str):
+        return _FakeResult(remaining.pop(0), 0)
+
+    return run_exec
+
+
 def test_front_door_prompt_has_a_strict_token_efficiency_budget() -> None:
     prompt = build_front_door_prompt("你好", active_mission=True)
 
@@ -48,12 +57,19 @@ def test_front_door_prompt_has_a_strict_token_efficiency_budget() -> None:
     )
     assert "VERTICAL:" not in prompt
     assert "TARGET:" not in prompt
+    assert "explicit continue/resume after a pause is not a control token" in prompt
+    assert "resumed paused tasks with those effects are TEAM" in prompt
     assert "WORKFLOW:" not in prompt
     assert "FAST_REPLY:" not in prompt
     assert "ACTIVE_MISSION: YES" in prompt
+    assert "Questions, requests for an explanation/status/capability check" in prompt
+    assert "Ambiguity defaults to no control" in prompt
+    assert "terminology definitions" in prompt
+    assert "post-reply learning review" in prompt
     assert "BOUNDED_INCREMENT" in prompt
     assert "BOUNDED" in prompt
     assert "STANDING" in prompt
+    assert "default BOUNDED" in prompt
 
 
 def test_name_axis_reports_concise_title_without_changing_route_contract() -> None:
@@ -146,7 +162,7 @@ def test_front_door_preserves_explicit_bounded_increment_for_team() -> None:
     assert lifetimes == ["bounded_increment"]
 
 
-def test_front_door_missing_lifetime_defaults_team_to_standing() -> None:
+def test_front_door_missing_lifetime_defaults_team_to_bounded() -> None:
     lifetimes: list[str] = []
     decision = classify_front_door(
         "continue useful work",
@@ -155,7 +171,7 @@ def test_front_door_missing_lifetime_defaults_team_to_standing() -> None:
     )
 
     assert decision == (None, None, "complex")
-    assert lifetimes == ["standing"]
+    assert lifetimes == ["bounded"]
 
 
 def test_front_door_pure_greeting_can_finish_from_one_model_call() -> None:
@@ -293,6 +309,35 @@ def test_abort_control_forces_self_and_never_becomes_team_work() -> None:
     assert route == "simple"
 
 
+def test_pause_control_clocks_out_whole_session() -> None:
+    intent, control, route = classify_front_door(
+        "请暂停整个会话",
+        run_exec=_exec("CONFIG: NONE\nCONTROL: PAUSE\nROUTE: TEAM"),
+    )
+    assert intent is None
+    assert control == "pause"
+    assert route == "simple"
+
+
+def test_bare_pause_is_decided_by_front_door_model_call() -> None:
+    called = False
+
+    def run_exec(prompt: str):
+        nonlocal called
+        called = True
+        assert "停一下，你在干什么？" in prompt
+        return _FakeResult("CONFIG: NONE\nCONTROL: PAUSE\nROUTE: TEAM")
+
+    decision = classify_front_door(
+        "停一下，你在干什么？",
+        run_exec=run_exec,
+        active_mission=True,
+    )
+
+    assert decision == (None, "pause", "simple")
+    assert called is True
+
+
 def test_explicit_authorization_uses_structured_action_enum_and_forces_self() -> None:
     authorizations: list[tuple[str, ...]] = []
     intent, control, route = classify_front_door(
@@ -327,15 +372,18 @@ def test_authorization_question_does_not_create_authority() -> None:
 
 def test_steer_control_routes_running_mission_direction_inline() -> None:
     directives: list[str] = []
+    lifetimes: list[str] = []
     intent, control, route = classify_front_door(
-        "你好蠢啊，先上网查别人怎么解决这个问题",
-        run_exec=_exec(
+        "停止当前自创路线，改为先上网查别人怎么解决这个问题",
+        run_exec=_exec_sequence(
             "CONFIG: NONE\nCONTROL: STEER\n"
             "STEER_DIRECTIVE: 暂停当前自创路线；检索最接近的前人方法和基础理论，形成来源审计后由 Planner 决定下一证明节点。\n"
             "ROUTE: TEAM\n"
-            "LIFETIME: NONE\nNAME: 调整数学方向"
+            "LIFETIME: STANDING\nNAME: 调整数学方向",
+            "STEER",
         ),
         steering_sink=directives.append,
+        lifetime_sink=lifetimes.append,
         active_mission=True,
     )
     assert intent is None
@@ -344,6 +392,48 @@ def test_steer_control_routes_running_mission_direction_inline() -> None:
     assert directives == [
         "暂停当前自创路线；检索最接近的前人方法和基础理论，形成来源审计后由 Planner 决定下一证明节点。"
     ]
+    assert lifetimes == ["standing"]
+
+
+def test_question_about_profiling_cannot_mutate_active_mission() -> None:
+    directives: list[str] = []
+    intent, control, route = classify_front_door(
+        "有没有完整 Profile 测一下前向耗时？macOS 有 quant activation 吗？",
+        run_exec=_exec_sequence(
+            "CONFIG: NONE\nCONTROL: STEER\n"
+            "STEER_DIRECTIVE: 改成完整前向 profiling。\n"
+            "ROUTE: SELF\nSELF_MODE: INSPECT\nREPLY: NONE\n"
+            "LIFETIME: NONE\nGREETING: NONE\nNAME: 前向性能问题",
+            "SELF",
+        ),
+        steering_sink=directives.append,
+        active_mission=True,
+    )
+
+    assert intent is None
+    assert control is None
+    assert route == "simple"
+    assert directives == []
+
+
+def test_steer_is_structurally_impossible_without_active_mission() -> None:
+    directives: list[str] = []
+    intent, control, route = classify_front_door(
+        "把当前任务改成完整前向 profiling",
+        run_exec=_exec(
+            "CONFIG: NONE\nCONTROL: STEER\n"
+            "STEER_DIRECTIVE: 改成完整前向 profiling。\n"
+            "ROUTE: SELF\nSELF_MODE: INSPECT\nREPLY: NONE\n"
+            "LIFETIME: NONE\nGREETING: NONE\nNAME: 前向性能任务"
+        ),
+        steering_sink=directives.append,
+        active_mission=False,
+    )
+
+    assert intent is None
+    assert control is None
+    assert route == "simple"
+    assert directives == []
 
 
 @pytest.mark.parametrize(

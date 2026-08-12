@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import os
 import shutil
@@ -168,7 +167,8 @@ def test_upload_attachment_writes_to_canonical_workdir(
     assert attachment["mime"] == "text/markdown"
     assert attachment["original_name"] == "notes.md"
     assert attachment["size_bytes"] == len(payload)
-    assert attachment["sha256"] == hashlib.sha256(payload).hexdigest()
+    assert "sha256" not in attachment
+    assert "integrity" not in attachment
     assert attachment["relative_path"].startswith(".argus/attachments/s-upload0/att-")
 
 
@@ -223,8 +223,35 @@ def test_message_route_resolves_attachment_metadata(
     assert forwarded[0]["relative_path"].endswith("/report.csv")
     assert forwarded[0]["mime"] == "text/csv"
     assert forwarded[0]["size_bytes"] == len(b"a,b\n1,2\n")
-    assert isinstance(forwarded[0]["sha256"], str) and len(forwarded[0]["sha256"]) == 64
-    assert " " in str(forwarded[0]["integrity"])
+    assert "sha256" not in forwarded[0]
+    assert "integrity" not in forwarded[0]
+
+
+def test_resolve_legacy_attachment_drops_hash_metadata(tmp_path: Path) -> None:
+    workspace = _make_project(tmp_path, "s-upload0")
+    uploaded = upload_attachments(
+        "s-upload0",
+        [("notes.md", "text/markdown", b"hello\n")],
+        global_root=tmp_path,
+    )["attachments"][0]
+    metadata_path = (
+        workspace
+        / Path(uploaded["relative_path"]).parent
+        / "metadata.json"
+    )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["sha256"] = "legacy"
+    metadata["integrity"] = "legacy"
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    resolved = resolve_attachment_refs(
+        "s-upload0",
+        [{"attachment_id": uploaded["attachment_id"]}],
+        global_root=tmp_path,
+    )[0]
+
+    assert "sha256" not in resolved
+    assert "integrity" not in resolved
 
 
 def test_message_stream_route_resolves_attachment_metadata(

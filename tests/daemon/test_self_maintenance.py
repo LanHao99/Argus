@@ -99,7 +99,9 @@ def test_read_self_maintenance_snapshot_is_typed_and_fail_soft(
 
 def test_copilot_self_maintenance_defers_without_safe_isolated_auth(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
+    monkeypatch.setenv("ARGUS_SKILL_SAFE_MODE", "1")
     events: list[dict] = []
     controller = DaemonSelfMaintenance(
         life_dir=tmp_path / "life",
@@ -118,6 +120,47 @@ def test_copilot_self_maintenance_defers_without_safe_isolated_auth(
     assert state["phase"] == "deferred"
     assert state["active_item_id"] == ""
     assert events[-1]["type"] == "manager.self_maintenance.availability"
+
+
+def test_pi_self_maintenance_defers_without_exposing_provider_auth(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ARGUS_SKILL_SAFE_MODE", "1")
+    controller = DaemonSelfMaintenance(
+        life_dir=tmp_path / "life",
+        framework_root=tmp_path,
+        project_workdir=tmp_path,
+        manager=_Manager(),
+        memory=SimpleNamespace(),
+        backend="pi",
+    )
+
+    assert controller.preflight_isolation(force=True) is False
+    state = json.loads(controller.state_path.read_text(encoding="utf-8"))
+    assert state["maintenance_available"] is False
+    assert "provider credentials" in state["isolation_error"]
+    assert state["phase"] == "deferred"
+
+
+def test_self_maintenance_full_access_is_available_by_default(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("ARGUS_SKILL_SAFE_MODE", raising=False)
+    controller = DaemonSelfMaintenance(
+        life_dir=tmp_path / "life",
+        framework_root=tmp_path,
+        project_workdir=tmp_path,
+        manager=_Manager(),
+        memory=SimpleNamespace(),
+        backend="pi",
+    )
+
+    assert controller.preflight_isolation(force=True) is True
+    state = json.loads(controller.state_path.read_text(encoding="utf-8"))
+    assert state["maintenance_available"] is True
+    assert state["access_mode"] == "full"
 
 
 def test_frontend_dependency_links_are_temporary(tmp_path: Path) -> None:
@@ -291,6 +334,11 @@ def test_manager_queues_private_reviewed_repair_from_real_event(
     assert item.execution_workdir == str(worktree)
     assert "framework_maintenance" in item.tags
     assert "review:required" in item.tags
+    assert item.manager_decision == {
+        "routed": True,
+        "vertical": "argus_maintenance",
+        "workflow_mode": "direct",
+    }
     assert "Do not perform unrelated cleanup" in item.objective
 
 
@@ -455,6 +503,54 @@ def test_wiki_hook_warning_triggers_manager_audit(tmp_path: Path) -> None:
     [observation] = state["observations"]
     assert observation["type"] == "wiki.hook.warning"
     assert observation["details"]["operation"] == "rebuild_indexes"
+
+
+def test_compact_mission_error_observation_retains_bounded_manager_diagnostics(
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path, _Manager(action="no_action"))
+
+    controller.observe({
+        "type": "life.mission.completed",
+        "ts": 10.0,
+        "item_id": "mission-123",
+        "title": "Repair mission completion error reporting",
+        "objective": "private full objective must not be captured",
+        "scope": "private scope must not be captured",
+        "status": "error",
+        "terminal_status": "error",
+        "failure_reason": "UnknownVerticalError: multimodal_video_generation",
+        "stop_reason": "unknown vertical",
+        "stop_kind": "permanent_error",
+        "recoverable": False,
+        "resumable": True,
+        "usage_record_count": 2,
+        "usage_records": [{"prompt": "full prompt payload must not leak"}],
+        "planner_report": {"private": "full report must not leak"},
+        "context_packet": "/private/context/latest.json",
+    })
+    controller.observe({
+        "type": "not.observed",
+        "ts": 11.0,
+        "failure_reason": "must not broaden event capture",
+    })
+
+    state = controller._state()
+    [observation] = state["observations"]
+    assert observation["type"] == "life.mission.completed"
+    details = observation["details"]
+    assert details == {
+        "status": "error",
+        "item_id": "mission-123",
+        "title": "Repair mission completion error reporting",
+        "terminal_status": "error",
+        "failure_reason": "UnknownVerticalError: multimodal_video_generation",
+        "stop_reason": "unknown vertical",
+        "stop_kind": "permanent_error",
+        "recoverable": False,
+        "resumable": True,
+        "usage_record_count": 2,
+    }
 
 
 def test_budget_block_prevents_manager_maintenance_call(tmp_path: Path) -> None:

@@ -36,6 +36,7 @@ from argus_skill.daemon.state import (
     _daemon_status_payload,
     daemon_drain_requested,
     request_daemon_drain,
+    request_daemon_stop,
 )
 from argus_skill.life.memory import BacklogItem, LifeMemory
 
@@ -82,6 +83,18 @@ def test_max_active_daemons_defaults_to_64(
     )
 
     assert life_worker_mod._max_active_daemons(LifeWorkerConfig(life_dir=tmp_path)) == 64
+
+
+def test_runner_namespace_uses_bounded_round_default_with_env_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = LifeWorkerConfig(life_dir=tmp_path, backend="memory")
+
+    assert _runner_namespace(config).max_rounds == 32
+
+    monkeypatch.setenv("ARGUS_SKILL_MAX_ROUNDS", "7")
+    assert _runner_namespace(config).max_rounds == 7
 
 
 def test_daemon_strict_release_preflight_fails_before_backend_probe(
@@ -321,6 +334,50 @@ def test_life_worker_uses_global_config_without_project_budget_file(
 
 def test_stop_daemon_returns_1_when_no_daemon(tmp_path: Path) -> None:
     assert stop_daemon(tmp_path) == 1
+
+
+def test_nonblocking_stop_request_revalidates_pid_and_signals_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import argus_skill.daemon.state as daemon_state
+
+    status = SimpleNamespace(alive=True, pid=4242, life_dir=tmp_path)
+    monkeypatch.setattr(daemon_state, "read_daemon_status", lambda _root: status)
+    monkeypatch.setattr(daemon_state, "_same_daemon_alive", lambda _root, _pid: True)
+    signals: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        daemon_state.os,
+        "kill",
+        lambda pid, signum: signals.append((pid, signum)),
+    )
+    (tmp_path / DAEMON_UPGRADE_REQUEST_FILE).write_text("{}", encoding="utf-8")
+
+    requested, pid = request_daemon_stop(tmp_path)
+
+    assert (requested, pid) == (True, 4242)
+    assert signals == [(4242, daemon_state.signal.SIGTERM)]
+    assert not (tmp_path / DAEMON_UPGRADE_REQUEST_FILE).exists()
+
+
+def test_nonblocking_stop_request_refuses_stale_pid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import argus_skill.daemon.state as daemon_state
+
+    status = SimpleNamespace(alive=True, pid=4242, life_dir=tmp_path)
+    monkeypatch.setattr(daemon_state, "read_daemon_status", lambda _root: status)
+    monkeypatch.setattr(daemon_state, "_same_daemon_alive", lambda _root, _pid: False)
+    monkeypatch.setattr(
+        daemon_state.os,
+        "kill",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("stale daemon identity must not be signalled")
+        ),
+    )
+
+    assert request_daemon_stop(tmp_path) == (False, None)
 
 
 def test_explicit_stop_cancels_pending_daemon_upgrade(tmp_path: Path) -> None:
@@ -576,6 +633,32 @@ def test_force_drain_clears_pid_bound_request(tmp_path: Path) -> None:
             == 0
         )
         assert not daemon_drain_requested(tmp_path, pid=pid)
+    finally:
+        _reap_fake_daemon(pid)
+
+
+@pytest.mark.integration
+def test_draining_daemon_remains_alive_if_pid_path_disappears(tmp_path: Path) -> None:
+    pid = _spawn_fake_daemon(
+        tmp_path,
+        pre_ready="signal.signal(signal.SIGTERM, signal.SIG_IGN)\n",
+        post_ready="time.sleep(60)\n",
+    )
+    try:
+        assert (
+            life_worker_mod.stop_daemon(
+                tmp_path,
+                drain=True,
+                drain_timeout=0.1,
+            )
+            == 2
+        )
+        life_worker_mod._daemon_pid_path(tmp_path).unlink()
+
+        status = life_worker_mod.read_daemon_status(tmp_path)
+
+        assert status.alive is True
+        assert status.pid == pid
     finally:
         _reap_fake_daemon(pid)
 
@@ -855,6 +938,58 @@ def test_workspace_start_rejects_another_live_session_on_same_workdir(
             life_dir=target_life,
             global_root=root,
             project_workdir=workdir,
+            project_fingerprint="s-target",
+        )
+    )
+
+    assert "already owned by active session s-owner" in error
+
+
+def test_workspace_start_rejects_another_session_on_adopted_child_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess
+
+    from argus_skill.core.campaign_workdir import adopt_campaign_workdir
+
+    root = tmp_path / "state"
+    target_life = root / "projects" / "s-target"
+    owner_life = root / "projects" / "s-owner"
+    workspace = tmp_path / "workspace"
+    child = workspace / "target-repo"
+    target_life.mkdir(parents=True)
+    owner_life.mkdir(parents=True)
+    workspace.mkdir()
+    subprocess.run(["git", "init", "-q", str(child)], check=True)
+    write_session_meta(
+        root,
+        SessionMeta(id="s-target", cwd=str(target_life), workdir=str(child)),
+    )
+    write_session_meta(
+        root,
+        SessionMeta(id="s-owner", cwd=str(owner_life), workdir=str(workspace)),
+    )
+    adopt_campaign_workdir(
+        state_root=owner_life,
+        base_root=workspace,
+        current_root=workspace,
+        requested="target-repo",
+    )
+
+    def status(path: Path) -> SimpleNamespace:
+        return SimpleNamespace(
+            alive=Path(path) == owner_life,
+            pid=654,
+            project_workdir=str(workspace) if Path(path) == owner_life else "",
+        )
+
+    monkeypatch.setattr(life_worker_mod, "read_daemon_status", status)
+    error = _workspace_start_error(
+        LifeWorkerConfig(
+            life_dir=target_life,
+            global_root=root,
+            project_workdir=child,
             project_fingerprint="s-target",
         )
     )
@@ -1300,6 +1435,38 @@ def test_write_and_read_continuous_config(tmp_path: Path) -> None:
     assert obj == "optimize everything"
 
 
+def test_legacy_continuous_config_defaults_to_open_ended(tmp_path: Path) -> None:
+    (tmp_path / "continuous.json").write_text(
+        json.dumps({"enabled": True, "objective": "legacy campaign"}),
+        encoding="utf-8",
+    )
+
+    assert read_continuous_state(tmp_path).open_ended is True
+
+
+def test_bounded_continuous_config_preserves_lifetime_across_disable(
+    tmp_path: Path,
+) -> None:
+    from argus_skill.daemon.state import disable_continuous_config
+
+    write_continuous_config(
+        tmp_path,
+        enabled=True,
+        objective="finite staged goal",
+        open_ended=False,
+    )
+
+    state = disable_continuous_config(tmp_path, done_reason="operator drain-stop")
+
+    assert state.open_ended is False
+    write_continuous_config(
+        tmp_path,
+        enabled=True,
+        objective=state.objective,
+    )
+    assert read_continuous_state(tmp_path).open_ended is False
+
+
 def test_write_continuous_config_done_reason(tmp_path: Path) -> None:
     import json
 
@@ -1421,8 +1588,9 @@ def test_life_worker_hot_reload_rejects_memory_continuous(
         def run(self) -> dict[str, Any]:
             seen["runs"] += 1
             if self.config.continuous_config_provider is not None:
-                enabled, objective = self.config.continuous_config_provider()
+                enabled, objective, open_ended = self.config.continuous_config_provider()
                 self.config.continuous = enabled
+                self.config.open_ended = open_ended
                 if objective:
                     self.config.continuous_objective = objective
             seen["continuous"].append((self.config.continuous, self.config.continuous_objective))
@@ -1493,8 +1661,9 @@ def test_life_worker_retries_planning_after_planner_error(
         def run(self) -> dict[str, Any]:
             seen["runs"] += 1
             if self.config.continuous_config_provider is not None:
-                enabled, objective = self.config.continuous_config_provider()
+                enabled, objective, open_ended = self.config.continuous_config_provider()
                 self.config.continuous = enabled
+                self.config.open_ended = open_ended
                 if objective:
                     self.config.continuous_objective = objective
             seen["continuous"].append((self.config.continuous, self.config.continuous_objective))
@@ -1533,6 +1702,8 @@ def test_resume_continuous_adopts_persisted_manager_handoff_without_backend(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
     LifeMemory.open(tmp_path).init()
     write_continuous_config(
         tmp_path,
@@ -1592,6 +1763,7 @@ def test_resume_continuous_adopts_persisted_manager_handoff_without_backend(
     worker = LifeWorker(
         LifeWorkerConfig(
             life_dir=tmp_path,
+            project_workdir=workdir,
             backend="memory",
             poll_interval=0.01,
             resume_continuous=True,
@@ -1887,8 +2059,9 @@ def test_life_worker_keeps_continuous_enabled_on_terminal_idle(
         def run(self) -> dict[str, Any]:
             seen["runs"] += 1
             if self.config.continuous_config_provider is not None:
-                enabled, objective = self.config.continuous_config_provider()
+                enabled, objective, open_ended = self.config.continuous_config_provider()
                 self.config.continuous = enabled
+                self.config.open_ended = open_ended
                 if objective:
                     self.config.continuous_objective = objective
             seen["continuous"].append((self.config.continuous, self.config.continuous_objective))
@@ -2086,8 +2259,12 @@ def test_daemon_suppresses_rejected_objective_when_handoff_write_fails(
             self.config: Any = kwargs["config"]
 
         def run(self) -> dict[str, Any]:
-            enabled, objective = self.config.continuous_config_provider()
-            seen.update(enabled=enabled, objective=objective)
+            enabled, objective, open_ended = self.config.continuous_config_provider()
+            seen.update(
+                enabled=enabled,
+                objective=objective,
+                open_ended=open_ended,
+            )
             self.config.stop_event.set()
             return {"stopped_by": "backlog_empty"}
 
@@ -2103,7 +2280,11 @@ def test_daemon_suppresses_rejected_objective_when_handoff_write_fails(
     worker._install_signal_handlers = lambda: None  # type: ignore[method-assign]
 
     assert worker.run_forever() == 0
-    assert seen == {"enabled": False, "objective": raw}
+    assert seen == {
+        "enabled": False,
+        "objective": raw,
+        "open_ended": True,
+    }
     assert read_continuous_state(tmp_path).enabled is True
 
 

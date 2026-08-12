@@ -20,6 +20,7 @@ from ..roles.prompts.manager import (
     build_front_door_prompt,
     build_route_prompt,
     build_simple_prompt,
+    build_steer_confirmation_prompt,
 )
 
 _IDENTITY_GUARD = _PROMPT_IDENTITY_GUARD
@@ -130,7 +131,7 @@ class ConfigIntent:
     value: str  # target value, verbatim (backend / model id / effort / $amount / on|off)
 
 
-ControlIntent = Literal["abort", "no_dispatch", "steer"]
+ControlIntent = Literal["abort", "pause", "no_dispatch", "steer"]
 SelfModeIntent = Literal["reply", "inspect"]
 ConfigDecision = ConfigIntent | tuple[ConfigIntent, ...] | None
 LifetimeIntent = Literal["bounded", "bounded_increment", "standing"]
@@ -148,7 +149,6 @@ _AUTHORIZATION_ACTIONS = {
     "artifact_refresh",
     "resume_blocked_work",
 }
-
 
 _GREETING_REPLIES = {
     "zh": "你好，我是 Argus Manager。",
@@ -299,6 +299,7 @@ def classify_front_door(
     greeting_sink: Callable[[str], None] | None = None,
     steering_sink: Callable[[str], None] | None = None,
     authorization_sink: Callable[[tuple[str, ...]], None] | None = None,
+    failure_sink: Callable[[str], None] | None = None,
     active_mission: bool = False,
 ) -> "tuple[ConfigDecision, ControlIntent | None, str]":
     """One model call for every cheap front-door decision.
@@ -313,9 +314,13 @@ def classify_front_door(
         result = run_exec(
             build_front_door_prompt(cleaned, active_mission=active_mission)
         )
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        if callable(failure_sink):
+            failure_sink(f"{type(exc).__name__}: {exc}")
         return None, None, "complex"
     if int(getattr(result, "exit_code", 0) or 0) != 0:
+        if callable(failure_sink):
+            failure_sink("classifier backend failed")
         return None, None, "complex"
     answer = _extract_answer(result)
     config_line = _line_after_prefix(answer, "CONFIG:")
@@ -335,16 +340,43 @@ def classify_front_door(
     control: ControlIntent | None
     if control_token.startswith("ABORT"):
         control = "abort"
+    elif control_token.startswith("PAUSE"):
+        control = "pause"
     elif control_token.startswith(("NO_DISPATCH", "NO DISPATCH", "NODISPATCH")):
         control = "no_dispatch"
     elif control_token.startswith("STEER"):
         control = "steer"
     else:
         control = None
-    route = (
-        _route_from_token(_first_alpha_token(route_line)) if route_line is not None else "complex"
-    )
-    if control in {"abort", "no_dispatch", "steer"}:
+    if control == "steer" and not active_mission:
+        control = None
+    elif control == "steer":
+        try:
+            confirmation = run_exec(
+                build_steer_confirmation_prompt(
+                    cleaned,
+                    active_mission=active_mission,
+                )
+            )
+        except Exception:  # noqa: BLE001 - mutation fails closed
+            control = None
+        else:
+            if int(getattr(confirmation, "exit_code", 0) or 0) != 0:
+                control = None
+            elif _first_alpha_token(_extract_answer(confirmation)).upper() != "STEER":
+                control = None
+    route_token = _first_alpha_token(route_line) if route_line is not None else ""
+    if not route_token or route_token.upper() not in {
+        "SELF",
+        "SIMPLE",
+        "TEAM",
+        "COMPLEX",
+    }:
+        if callable(failure_sink):
+            failure_sink("classifier returned no valid route")
+        return intent, None, "complex"
+    route = _route_from_token(route_token)
+    if control in {"abort", "pause", "no_dispatch", "steer"}:
         route = "simple"
     authorization = _parse_authorization_line(authorization_line)
     if authorization:
@@ -383,23 +415,31 @@ def classify_front_door(
             except Exception:  # noqa: BLE001 - optional fast reply only
                 pass
     lifetime: LifetimeIntent | None = None
+    lifetime_parts = str(lifetime_line or "").strip().split(maxsplit=1)
+    lifetime_token = (
+        lifetime_parts[0].replace("-", "_").upper()
+        if lifetime_parts
+        else ""
+    )
     if route == "complex":
-        # Missing/malformed output keeps the conservative standing default.
         # BOUNDED_INCREMENT preserves an operator's explicit instruction to do
         # only one named stage/increment even when vertical classification later
         # identifies a normally-staged workflow.
-        lifetime_parts = str(lifetime_line or "").strip().split(maxsplit=1)
-        lifetime_token = (
-            lifetime_parts[0].replace("-", "_").upper()
-            if lifetime_parts
-            else ""
-        )
         if lifetime_token == "BOUNDED_INCREMENT":
+            lifetime = "bounded_increment"
+        elif lifetime_token == "STANDING":
+            lifetime = "standing"
+        else:
+            lifetime = "bounded"
+    elif control == "steer":
+        # A steering turn stays on the SELF control path, but it may explicitly
+        # promote the active bounded mission to a standing campaign.
+        if lifetime_token == "STANDING":
+            lifetime = "standing"
+        elif lifetime_token == "BOUNDED_INCREMENT":
             lifetime = "bounded_increment"
         elif lifetime_token == "BOUNDED":
             lifetime = "bounded"
-        else:
-            lifetime = "standing"
     if callable(lifetime_sink) and lifetime is not None:
         try:
             lifetime_sink(lifetime)

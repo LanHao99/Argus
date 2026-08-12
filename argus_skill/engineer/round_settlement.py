@@ -33,6 +33,13 @@ def _review_forward_progress(review: ReviewDecision) -> bool | None:
     return value if isinstance(value, bool) else None
 
 
+def _review_plan_signal(review: ReviewDecision) -> str:
+    report = review.planner_report
+    if not isinstance(report, dict):
+        return ""
+    return str(report.get("plan_signal") or "").strip().lower()
+
+
 def _next_semantic_stall_streak(
     review: ReviewDecision,
     current_streak: int,
@@ -67,6 +74,19 @@ class RoundSettlementMixin:
         decision_idle_seconds: float = 0.0,
         decision_timeout_seconds: int = 0,
     ) -> tuple[LoopStatus | None, str]:
+        if _review_plan_signal(review) == "reconsider":
+            report = review.planner_report if isinstance(review.planner_report, dict) else {}
+            challenge = str(report.get("challenge") or review.reason or "").strip()
+            authority = str(report.get("authority_impact") or "technical").strip()
+            if authority == "operator" and review.operator_question:
+                return (
+                    "blocked",
+                    challenge or "The plan challenge requires an operator decision.",
+                )
+            return (
+                "replan_requested",
+                challenge or "Later evidence materially challenged the current plan.",
+            )
         if review.status == "done":
             return "done", review.reason or "Reviewer judged the objective complete."
         if review.status == "blocked":
@@ -107,12 +127,14 @@ class RoundSettlementMixin:
             hard_escalate_rounds > 0
             and round_index >= hard_escalate_rounds
             and review.status == "continue"
+            and _review_forward_progress(review) is None
         ):
             return (
                 "blocked",
-                f"Escalated: ran {round_index} rounds without completing — the "
-                "mission is likely stuck on an external / unresolved constraint. "
-                "Ending so the planner can re-plan or decompose. " + (review.reason or ""),
+                f"Escalated after {round_index} rounds because Reviewer did not "
+                "provide an explicit forward-progress judgment at the continuation "
+                "boundary. Refusing to continue blindly; Planner can re-plan or "
+                "decompose. " + (review.reason or ""),
             )
         return None, ""
 
@@ -190,6 +212,28 @@ class RoundSettlementMixin:
                     ),
                 }
             )
+        if (
+            on_event
+            and supervised_config.hard_escalate_rounds > 0
+            and round_index == supervised_config.hard_escalate_rounds
+            and review.status == "continue"
+            and forward_progress is not None
+        ):
+            on_event({
+                "type": EventType.ROUND_ESCALATED,
+                "round_index": round_index,
+                "hard_escalate_rounds": supervised_config.hard_escalate_rounds,
+                "forward_progress": forward_progress,
+                "continuation_reason": (
+                    "semantic_progress"
+                    if forward_progress
+                    else "bounded_no_progress_observation"
+                ),
+                "text": (
+                    f"round {round_index} crossed the continuation boundary under "
+                    "the Reviewer's explicit progress judgment"
+                ),
+            })
         terminal_status, reason = self._classify(
             review=review,
             no_progress_streak=state.no_progress_streak,

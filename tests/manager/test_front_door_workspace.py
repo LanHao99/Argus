@@ -62,7 +62,10 @@ def test_manager_runner_uses_persisted_workdir_without_moving_state_root(
     assert args.manager_session_root == str(memory.project.root)
     assert args.project_state_dir == str(memory.project.root)
     assert args.global_root == str(root)
+    assert args.skills_dir == str(root / "skills")
     assert args.operator_workspace == str(workspace.resolve())
+    assert args.skills_dir == str(root / "skills")
+    assert args.manager_memory is memory
 
 
 def test_manager_runner_falls_back_when_launch_cwd_is_missing(

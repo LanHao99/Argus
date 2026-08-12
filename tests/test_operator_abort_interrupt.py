@@ -40,6 +40,9 @@ def test_operator_abort_pattern_is_recognized() -> None:
     assert fatal_error_looks_like_operator_abort_request(
         "EXTERNAL INTERRUPT: OPERATOR ABORT REQUESTED: whatever"
     )
+    assert fatal_error_looks_like_operator_abort_request(
+        "refused before start: operator abort requested: pause session"
+    )
 
 
 def test_operator_abort_pattern_rejects_unrelated_or_empty_text() -> None:
@@ -177,7 +180,6 @@ def test_loop_stops_clean_on_operator_abort_without_calling_reviewer(
         max_rounds=10,
         backend_failure_threshold=2,
         backend_failure_backoff_seconds=0.0,
-        effective_progress_timeout_seconds=0,
         background_subagent_advisory=False,
     )
     status, rounds, _final_msg, reason, _tid = engine.run(
@@ -221,7 +223,6 @@ def test_loop_stops_without_backend_retry_when_reviewer_is_operator_aborted(
         max_rounds=10,
         backend_failure_threshold=2,
         backend_failure_backoff_seconds=0.0,
-        effective_progress_timeout_seconds=0,
         background_subagent_advisory=False,
     )
 

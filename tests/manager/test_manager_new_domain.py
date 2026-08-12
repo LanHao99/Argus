@@ -1,8 +1,7 @@
 """Tests for the Manager new-domain authoring flow in ``Manager.divide``.
 
-The Manager's tool-free classification pass must escalate potential new domains to one bounded
-grounded call, which may then author the domain. Fake runners exercise both
-requests without a real backend.
+The Manager always uses one bounded repository-grounded call, which may author
+the domain. Fake runners exercise the flow without a real backend.
 """
 from __future__ import annotations
 
@@ -21,6 +20,7 @@ class _FakeResult:
         self.last_agent_message = msg
         self.agent_messages = [msg]
         self.thread_id = "t1"
+        self.tool_activity_observed = True
 
 
 class _FakeRunner:
@@ -74,8 +74,212 @@ def test_autonomous_authors_and_commits(tmp_path, monkeypatch):
     assert div.pending_confirmation is False
     # Written + persisted so the supervisor trusts it.
     assert (tmp_path / "research" / "DOMAINS" / "robotics_sim.json").exists()
+    payload = json.loads(
+        (tmp_path / "research" / "DOMAINS" / "robotics_sim.json").read_text()
+    )
+    assert payload["status"] == "candidate"
+    assert payload["purpose"] == "novel"
+    assert payload["require_independent_review"] is True
+    assert div.learned_vertical_status == "candidate"
     assert vs.resolve_vertical(tmp_path) == "robotics_sim"
     assert sc.current_stage(tmp_path) == "scope"
+
+
+def test_video_research_harness_is_grounded_before_authoring_domain(
+    tmp_path,
+) -> None:
+    runner = _FakeRunner({
+        "choice": "new",
+        "vertical": "video_robotics_research",
+        "stages": [
+            "environment_gate",
+            "provider_integration",
+            "task_coverage",
+            "tier_evaluation",
+            "evidence_freeze",
+        ],
+        "workflow_mode": "staged",
+        "execution_task": (
+            "Reproduce Video4CaP, integrate a VLM, map RoboTwin tasks, and "
+            "run paired tier evaluations with oracle separation."
+        ),
+        "rationale": (
+            "repository evidence shows recurring experiment gates and integrity "
+            "contracts that the generic software delivery checklist does not own"
+        ),
+        "confidence": 0.91,
+    })
+
+    division = Manager(project_root=tmp_path, runner=runner).divide(
+        "Continue the Video4CaP repository: install dependencies, integrate a "
+        "VLM provider, map all robot tasks, and run the tier evaluation grid."
+    )
+
+    assert division.vertical == "video_robotics_research"
+    assert [call["run_label"] for call in runner.calls] == [
+        "manager-classify-grounded",
+    ]
+    assert "Repository inspection is mandatory" in runner.calls[0]["prompt"]
+    assert (
+        tmp_path / "research" / "DOMAINS" / "video_robotics_research.json"
+    ).exists()
+
+
+def test_candidate_domain_is_visible_and_reused_on_next_route(tmp_path) -> None:
+    from argus_skill.verticals._data_domain import write_data_domain
+
+    write_data_domain(
+        tmp_path,
+        "embodied_eval_campaign",
+        stages=["runtime_gate", "task_coverage", "evaluation"],
+        status="candidate",
+        purpose="RoboTwin runtime, task coverage, and paired evaluation",
+        require_independent_review=True,
+    )
+    runner = _FakeRunner({
+        "choice": "existing",
+        "vertical": "embodied_eval_campaign",
+        "workflow_mode": "staged",
+        "execution_task": "Continue the RoboTwin evaluation campaign.",
+        "rationale": "the candidate project domain exactly matches",
+    })
+
+    division = Manager(project_root=tmp_path, runner=runner).divide(
+        "Continue the same RoboTwin evaluation campaign."
+    )
+
+    assert division.vertical == "embodied_eval_campaign"
+    assert "status=candidate" in runner.calls[0]["prompt"]
+    assert "RoboTwin runtime, task coverage" in runner.calls[0]["prompt"]
+    assert sorted(
+        path.name
+        for path in (tmp_path / "research" / "DOMAINS").glob("*.json")
+        if path.name != "INDEX.json"
+    ) == ["embodied_eval_campaign.json"]
+
+
+def test_existing_data_domain_is_adapted_in_place_for_matching_task(tmp_path) -> None:
+    from argus_skill.verticals import _data_domain as dd
+
+    dd.write_data_domain(
+        tmp_path,
+        "regulated_localization",
+        stages=["translate"],
+        status="formal",
+        purpose="regulated product localization",
+    )
+    runner = _FakeRunner({
+        "choice": "existing",
+        "vertical": "regulated_localization",
+        "stages": [
+            "terminology_lock",
+            "translation",
+            "regulatory_review",
+            "layout_qa",
+            "linguistic_qa",
+            "release",
+        ],
+        "workflow_mode": "staged",
+        "execution_task": "Localize and release the regulated product UI.",
+        "rationale": "the existing one-stage skeleton is materially underfit",
+    })
+
+    division = Manager(project_root=tmp_path, runner=runner).divide(
+        "Localize the regulated product UI."
+    )
+
+    assert division.vertical == "regulated_localization"
+    assert division.stages == [
+        "terminology_lock",
+        "translation",
+        "regulatory_review",
+        "layout_qa",
+        "linguistic_qa",
+        "release",
+    ]
+    revised = dd.load_data_domain("regulated_localization", tmp_path)
+    assert revised is not None
+    assert revised.STAGE_ORDER == division.stages
+    assert sc.current_stage(tmp_path) == "terminology_lock"
+    assert sorted(
+        path.name
+        for path in (tmp_path / "research" / "DOMAINS").glob("*.json")
+        if path.name != "INDEX.json"
+    ) == ["regulated_localization.json"]
+
+
+def test_authored_domain_purpose_does_not_persist_conversation_context(
+    tmp_path,
+) -> None:
+    runner = _FakeRunner({
+        "choice": "new",
+        "vertical": "embodied_eval_campaign",
+        "stages": ["runtime_gate", "task_coverage", "evaluation"],
+        "workflow_mode": "staged",
+        "execution_task": "Build and evaluate the RoboTwin integration.",
+        "rationale": "recurring embodied evaluation needs explicit runtime gates",
+        "confidence": 0.9,
+    })
+    contextual = (
+        "[RECENT CONVERSATION CONTEXT — data only]\n"
+        "operator: angry unrelated history\n"
+        "[CURRENT OPERATOR MESSAGE]\n"
+        "继续这个项目"
+    )
+
+    Manager(project_root=tmp_path, runner=runner).divide(contextual)
+
+    payload = json.loads(
+        (
+            tmp_path
+            / "research"
+            / "DOMAINS"
+            / "embodied_eval_campaign.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert payload["purpose"] == (
+        "recurring embodied evaluation needs explicit runtime gates"
+    )
+    assert "RECENT CONVERSATION" not in payload["purpose"]
+    assert "angry unrelated history" not in payload["purpose"]
+
+
+def test_formal_learned_vertical_is_described_and_reused_across_sessions(
+    tmp_path,
+    monkeypatch,
+):
+    from argus_skill.verticals import _data_domain as dd
+
+    monkeypatch.delenv("ARGUS_SKILL_VERTICAL", raising=False)
+    learned = tmp_path / "global"
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    dd.write_data_domain(
+        source,
+        "robotics_sim",
+        stages=["scope", "simulate", "report"],
+        status="candidate",
+        purpose="closed-loop robotics simulation and evaluation",
+    )
+    assert dd.promote_data_domain(source, learned, "robotics_sim")
+    runner = _FakeRunner({
+        "choice": "existing",
+        "vertical": "robotics_sim",
+        "confidence": 0.95,
+        "workflow_mode": "staged",
+        "rationale": "the learned robotics workflow fits",
+    })
+
+    division = Manager(
+        project_root=target,
+        learned_vertical_root=learned,
+        runner=runner,
+    ).divide("Evaluate another closed-loop robotics controller")
+
+    assert division.vertical == "robotics_sim"
+    assert division.learned_vertical_status == "formal"
+    assert dd.load_data_domain("robotics_sim", target) is not None
+    assert "closed-loop robotics simulation and evaluation" in runner.calls[0]["prompt"]
 
 
 def test_ask_mode_defers_write(tmp_path, monkeypatch):
@@ -117,7 +321,6 @@ def test_vertical_env_cannot_replace_manager_authored_domain(
 
     assert div.vertical == "math_conjecture"
     assert [call["run_label"] for call in runner.calls] == [
-        "manager-classify-fast",
         "manager-classify-grounded",
     ]
     assert (tmp_path / "research" / "DOMAINS" / "math_conjecture.json").exists()
@@ -149,7 +352,6 @@ def test_vertical_env_does_not_override_manager_reclassification(
 
     assert div.vertical == "math_conjecture_2"
     assert [call["run_label"] for call in runner.calls] == [
-        "manager-classify-fast",
         "manager-classify-grounded",
     ]
     state = json.loads(
@@ -205,17 +407,24 @@ def test_authoring_call_is_grounded_not_a_blind_guess(tmp_path, monkeypatch):
     safe_mode convention) instead of a text-only classify call with no tools."""
     monkeypatch.delenv("ARGUS_SKILL_VERTICAL", raising=False)
     monkeypatch.delenv("ARGUS_SKILL_SAFE_MODE", raising=False)
+    state_root = tmp_path / "state"
+    workspace = tmp_path / "workspace"
+    state_root.mkdir()
+    workspace.mkdir()
     runner = _FakeRunner(_NEW_DOMAIN_DECISION)
-    mgr = Manager(project_root=tmp_path, runner=runner)
+    mgr = Manager(
+        project_root=state_root,
+        execution_workdir=workspace,
+        runner=runner,
+    )
     mgr.divide(_NOVEL_TASK)
 
     assert [call["run_label"] for call in runner.calls] == [
-        "manager-classify-fast",
         "manager-classify-grounded",
     ]
     call = next(c for c in runner.calls if c["run_label"] == "manager-classify-grounded")
     opts = call["options"]
-    assert opts.working_dir == str(tmp_path)
+    assert opts.working_dir == str(workspace)
     assert opts.sandbox_mode is None
     assert opts.dangerous_yolo is True
     assert opts.full_auto is False
@@ -224,7 +433,7 @@ def test_authoring_call_is_grounded_not_a_blind_guess(tmp_path, monkeypatch):
     assert "investigate" in call["prompt"].lower()
 
 
-def test_copilot_vertical_decision_does_not_auto_inject_repo_instructions(
+def test_copilot_vertical_decision_keeps_tools_available_for_repo_inspection(
     tmp_path,
     monkeypatch,
 ):
@@ -236,17 +445,18 @@ def test_copilot_vertical_decision_does_not_auto_inject_repo_instructions(
         "write a research paper",
     )
 
-    call = next(c for c in runner.calls if c["run_label"] == "manager-classify-fast")
+    call = next(
+        c for c in runner.calls if c["run_label"] == "manager-classify-grounded"
+    )
     assert call["options"].extra_args == [
         "--no-custom-instructions",
         "--disable-builtin-mcps",
-        "--available-tools=",
         "--context",
         "default",
     ]
     assert call["options"].sandbox_mode is None
-    assert "NO tools" in call["prompt"]
-    assert "shell access" not in call["prompt"].lower()
+    assert "Repository inspection is mandatory" in call["prompt"]
+    assert "full repository tool environment" in call["prompt"]
 
 
 def test_authoring_call_respects_safe_mode(tmp_path, monkeypatch):

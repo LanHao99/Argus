@@ -1,8 +1,9 @@
 """Manager vertical decision + domain authoring: prompts and strict parsers.
 
-``Manager.decide_vertical`` first makes one compact, tool-free routing request.
-A clear existing vertical commits immediately; uncertainty or a potentially new
-domain escalates once to a bounded, read-only repository investigation. This
+``Manager.decide_vertical`` always makes one bounded, repository-grounded
+routing request before any vertical can commit. The legacy fast-route parser
+remains available for wire/source compatibility, but it no longer controls
+formal project routing. This
 Prompt bodies live in :mod:`argus_skill.roles.prompts.manager` and are
 re-exported here for source compatibility; this module owns their fail-closed
 parsers.
@@ -238,6 +239,10 @@ class VerticalDecision:
     # Orthogonal execution topology chosen by Manager; never encoded as a vertical.
     workflow_mode: str = "staged"
     proposal: DomainProposal | None = None
+    # Existing project data domains may be refined in place when their stage
+    # skeleton is materially too weak for the matching recurring capability.
+    adapted_stages: tuple[str, ...] = ()
+    adaptation_reason: str = ""
     # Optional, independently-grounded choice of which workspace files the Web
     # cockpit should keep beside the live event stream. ``live_view_decided``
     # distinguishes an explicit null (clear the panel) from an older backend
@@ -269,12 +274,10 @@ class VerticalDecision:
 
 @dataclass(frozen=True)
 class FastVerticalRoute:
-    """Tool-free first-pass route returned before any repository inspection.
+    """Legacy tool-free first-pass route retained for compatibility.
 
-    ``needs_grounding`` is true when the model cannot confidently reuse an
-    existing vertical from the task text alone (including when it believes a
-    new data domain may be required).  The grounded fallback remains the only
-    path allowed to inspect repository files or author a domain.
+    Formal Manager routing no longer consumes this shape: every project task
+    uses the grounded decision path before persistence.
     """
 
     needs_grounding: bool
@@ -480,12 +483,37 @@ def parse_vertical_decision(
             target_venue = ""
         stated, ambiguities = _stated_requirements(obj)
         if name and name in known:
+            adapted_stages: tuple[str, ...] = ()
+            raw_stages = obj.get("stages")
+            existing_domains = {
+                str(value).strip().lower()
+                for value in existing_data_domains
+            }
+            if name in existing_domains and isinstance(raw_stages, list):
+                raw_tokens = [
+                    str(value or "").strip().casefold()
+                    for value in raw_stages
+                    if str(value or "").strip()
+                ]
+                if raw_tokens not in ([], ["none"]):
+                    normalized = tuple(
+                        dict.fromkeys(
+                            slug
+                            for value in raw_stages
+                            if (slug := _sluggify_name(value))
+                        )
+                    )
+                    if not (_MIN_STAGES <= len(normalized) <= _MAX_STAGES):
+                        return None
+                    adapted_stages = normalized
             return VerticalDecision(
                 choice="existing",
                 vertical=name,
                 domain=domain,
                 workflow_mode=workflow_mode,
                 proposal=None,
+                adapted_stages=adapted_stages,
+                adaptation_reason=str(obj.get("rationale") or "").strip()[:600],
                 live_view=parsed_live_view,
                 live_view_decided=live_view_decided,
                 execution_task=execution_task,

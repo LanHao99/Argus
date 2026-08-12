@@ -15,12 +15,14 @@ shipped with all three missing and became dead code that nothing called.
 from __future__ import annotations
 
 import inspect
+from types import SimpleNamespace
 
 from argus_skill.life.memory import BacklogItem
 from argus_skill.life.supervisor.backlog_guard import (
     DECISION_KEY,
     decision_evidence,
     describe_undecided,
+    ensure_manager_decision,
     needs_manager_decision,
     undecided_items,
 )
@@ -49,6 +51,16 @@ def test_a_directly_written_item_is_detected() -> None:
 
 def test_a_dispatched_item_is_left_alone() -> None:
     assert needs_manager_decision(_routed()) is False
+
+
+def test_manager_route_survives_backlog_serialization() -> None:
+    restored = BacklogItem.from_jsonable(_routed().to_jsonable())
+
+    assert restored.manager_decision == {
+        "routed": True,
+        "vertical": "research",
+    }
+    assert needs_manager_decision(restored) is False
 
 
 def test_a_decision_without_the_routed_flag_does_not_count() -> None:
@@ -123,6 +135,121 @@ def test_an_empty_decision_yields_no_false_routing_mark() -> None:
     assert decision_evidence(None) == {}
 
 
+def test_guard_reuses_the_daemon_manager_instead_of_building_a_runner(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from argus_skill.life import MemoryBundle
+    from argus_skill.manager import front_door
+
+    mem = MemoryBundle.for_cwd(
+        tmp_path,
+        global_root=tmp_path / "root",
+        fingerprint="s-reuse-daemon-manager",
+    )
+    mem.init()
+    item = mem.backlog.add(_written_directly(objective="profile the hot path"))
+    calls: list[tuple[str, str | None]] = []
+
+    class Manager:
+        def decide_vertical(self, body: str, *, root_task_id: str | None = None):
+            calls.append((body, root_task_id))
+            return SimpleNamespace(
+                execution_task=f"managed: {body}",
+                vertical="software",
+                stage="implementation",
+                workflow_mode="staged",
+            )
+
+    def fail_if_built(*_args, **_kwargs):
+        raise AssertionError("the guard must reuse the daemon's Manager")
+
+    monkeypatch.setattr(front_door, "_ensure_manager_runner", fail_if_built)
+
+    routed = ensure_manager_decision(mem, item, manager=Manager())
+
+    assert calls == [("profile the hot path", item.id)]
+    assert routed.objective == "managed: profile the hot path"
+    assert routed.manager_decision == {
+        "vertical": "software",
+        "stage": "implementation",
+        "workflow_mode": "staged",
+        "routed": True,
+    }
+    assert needs_manager_decision(routed) is False
+
+
+def test_guard_uses_injected_supervisor_runner(tmp_path, monkeypatch) -> None:
+    from argus_skill.life.memory import LifeMemory
+    from argus_skill.manager import front_door
+
+    memory = LifeMemory.open(tmp_path)
+    item = memory.backlog.add(_written_directly())
+    runner = object()
+    captured = {}
+
+    def fake_prepare(mem, objective, state, **kwargs):
+        captured["runner"] = kwargs["ensure_runner"](state, mem)
+        return SimpleNamespace(
+            execution_task=f"managed: {objective}",
+            decision=SimpleNamespace(vertical="research", workflow_mode="bounded"),
+        )
+
+    monkeypatch.setattr(front_door, "prepare_manager_execution_task", fake_prepare)
+
+    routed = ensure_manager_decision(
+        memory,
+        item,
+        ensure_runner=lambda _state, _mem: runner,
+    )
+
+    assert captured["runner"] is runner
+    assert routed.objective == "managed: read the literature"
+    assert routed.manager_decision == {
+        "vertical": "research",
+        "workflow_mode": "bounded",
+        "routed": True,
+    }
+
+
+def test_guard_reroutes_unknown_persisted_vertical(tmp_path, monkeypatch) -> None:
+    from argus_skill.life.memory import LifeMemory
+    from argus_skill.manager import front_door
+
+    memory = LifeMemory.open(tmp_path)
+    item = memory.backlog.add(
+        BacklogItem.new(
+            title="Run portable MLX baseline",
+            objective="Build the MLX quantization baseline.",
+            manager_decision={
+                "routed": True,
+                "vertical": "mlx_model_optimization",
+            },
+        )
+    )
+
+    def fake_prepare(mem, objective, state, **kwargs):
+        del mem, state, kwargs
+        assert objective == "Build the MLX quantization baseline."
+        return SimpleNamespace(
+            execution_task=objective,
+            decision=SimpleNamespace(
+                vertical="software",
+                workflow_mode="direct",
+            ),
+        )
+
+    monkeypatch.setattr(front_door, "prepare_manager_execution_task", fake_prepare)
+
+    routed = ensure_manager_decision(memory, item)
+
+    assert routed.manager_decision == {
+        "vertical": "software",
+        "workflow_mode": "direct",
+        "routed": True,
+    }
+
+
 # -- the wiring, which once went missing -----------------------------------
 
 def test_the_backlog_item_carries_the_field() -> None:
@@ -148,6 +275,8 @@ def test_the_supervisor_routes_before_executing() -> None:
     # Must happen after the claim and before the mission context is built,
     # or the run proceeds under the default workflow.
     assert claim_at < guard_at < context_at
+    assert "_bound_manager()" in source
+    assert "manager=manager" in source
 
 
 def test_status_reports_bypassed_items() -> None:
@@ -158,3 +287,73 @@ def test_status_reports_bypassed_items() -> None:
     # Nothing errors when the Manager is bypassed, so --status has to say it
     # or the blindness stays invisible.
     assert "describe_undecided" in source
+
+
+def test_bounded_dispatch_records_manager_decision_on_planner_nodes(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from argus_skill.life import MemoryBundle
+    from argus_skill.manager import dispatch, front_door
+
+    mem = MemoryBundle.for_cwd(
+        tmp_path,
+        global_root=tmp_path / "root",
+        fingerprint="s-backlog-guard",
+    )
+    mem.init()
+
+    class Manager:
+        def decide_vertical(self, body: str, **_kwargs):
+            return SimpleNamespace(
+                execution_task=f"managed: {body}",
+                vertical="argus_maintenance",
+                stage="scope",
+                workflow_mode="bounded",
+            )
+
+        def commit_vertical_decision(self, _body: str, decision, **_kwargs):
+            return SimpleNamespace(
+                execution_task=decision.execution_task,
+                vertical=decision.vertical,
+                stage=decision.stage,
+                workflow_mode=decision.workflow_mode,
+            )
+
+    plan = SimpleNamespace(
+        reason="two generic DAG nodes",
+        error="",
+        tasks=(
+            SimpleNamespace(
+                key="statement-lock",
+                deps=(),
+                title="Lock statement",
+                objective="Wait for operator approval before locking.",
+            ),
+            SimpleNamespace(
+                key="exact-search",
+                deps=("statement-lock",),
+                title="Exact search",
+                objective="Search only after the statement is approved.",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        front_door,
+        "_ensure_manager_runner",
+        lambda _state, _mem: SimpleNamespace(manager=Manager()),
+    )
+    monkeypatch.setattr(dispatch, "_plan_bounded_execution", lambda *a, **k: plan)
+
+    dispatch.enqueue_mission(
+        mem,
+        "operator-approved maintenance increment",
+        {"backend": "memory"},
+        root_task_id="root-manager-decision",
+    )
+
+    items = mem.backlog.all()
+    assert [item.node_key for item in items] == ["statement-lock", "exact-search"]
+    assert all(item.manager_decision.get("routed") is True for item in items)
+    assert all(item.manager_decision.get("workflow_mode") == "bounded" for item in items)
+    assert all(needs_manager_decision(item) is False for item in items)

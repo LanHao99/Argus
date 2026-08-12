@@ -74,7 +74,7 @@ def test_math_scope_prompt_is_compact_and_deduplicated(
     assert prompt.count(objective) == 1
     assert "Argus planner role skill:" not in prompt
     assert "waiting_contract" not in prompt
-    assert prompt.count("PROJECT_DONE=true|false") == 1
+    assert prompt.count("PROJECT_DONE=false") == 1
     assert "not a routing command" in prompt
     assert "Integrity and reproducibility are admission constraints" in prompt
     assert "delegate implementation to Engineer" in prompt
@@ -88,11 +88,67 @@ def test_math_scope_prompt_excludes_unrelated_modules(
     prompt, _objective = _build_math_scope_prompt(tmp_path, monkeypatch)
 
     assert "## Planner read-only delegation contract" in prompt
-    assert "## Stage checklist (scope)" in prompt
-    assert "## Stage gate" in prompt
+    assert "## Current workflow stage" in prompt
+    assert "current: `scope`" in prompt
+    assert "## Stage checklist" not in prompt
+    assert "## Stage gate" not in prompt
     assert "## Parallel paper-drafting track" not in prompt
     assert "PAPER_INFRASTRUCTURE_REVIEW.json" not in prompt
     assert "RESULT_PLACEHOLDERS.md" not in prompt
+
+
+def test_direct_workflow_suppresses_stage_artifact_ceremony(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    persist_vertical(
+        tmp_path,
+        "kernel_engineering",
+        workflow_mode="direct",
+    )
+    monkeypatch.setenv("ARGUS_SKILL_PROJECT_ROOT", str(tmp_path))
+
+    prompt = Planner._build_planner_prompt(
+        continuous_objective="Directly optimize MiniMax H3 inference on M4 Pro.",
+        journal_tail="(empty)",
+        planning_cycle=0,
+        open_ended=True,
+    )
+
+    assert "## Direct workflow — objective first" in prompt
+    assert "semantic context, not a mandatory artifact phase" in prompt
+    assert "## Stage checklist (scope)" not in prompt
+    assert "## Stage gate" not in prompt
+    assert "KERNEL_SCOPE.md" not in prompt
+
+
+def test_planner_keeps_operator_actions_ahead_of_optional_hardening(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ARGUS_SKILL_PROJECT_ROOT", str(tmp_path))
+    prompt = Planner._build_planner_prompt(
+        continuous_objective=(
+            "Download the BF16 model, quantize it, and prove local inference works."
+        ),
+        journal_tail="An older 8-bit model already has a local manifest.",
+        planning_cycle=0,
+        open_ended=False,
+    )
+
+    assert "Follow the operator's requested actions and order" in prompt
+    assert "a usable" in prompt
+    assert "alternative do not replace the first unmet requested action" in prompt
+    assert "Optional hardening never keeps a finite objective alive" in prompt
+
+
+def test_bounded_planner_rejects_tautological_acceptance_checks() -> None:
+    from argus_skill.roles.prompts.planner import build_bounded_dag_prompt
+
+    prompt = build_bounded_dag_prompt("Create exact.txt without changing README.")
+
+    assert "must fail when its claimed requirement is violated" in prompt
+    assert "never emit `or True`, `|| true`, unconditional success" in prompt
 
 
 def test_mature_math_prompt_keeps_only_bounded_terminal_history(

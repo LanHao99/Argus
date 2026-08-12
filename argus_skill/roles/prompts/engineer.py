@@ -5,7 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...core.model_visible_text import sanitize_model_visible_text
-from ..task_contract import EFFECTIVE_TASK_CONTRACT
+from ..task_contract import (
+    EFFECTIVE_TASK_CONTRACT,
+    native_shell_contract,
+    native_shell_summary,
+)
 from .types import RoleName, RolePromptRequest
 
 MISSION = "mission"
@@ -91,18 +95,20 @@ def build_mission_prompt(
     include_static: bool = True,
     role_banner: str = "",
     require_post_task_learning: bool = False,
-    file_read_budget: int = 12,
-    test_run_budget: int = 3,
     project_root: Path | str | None = None,
     project_skill_dir: Path | str | None = None,
 ) -> str:
     """Build the complete per-round Engineer mission prompt."""
     sections: list[str] = [EFFECTIVE_TASK_CONTRACT]
+    shell_contract = native_shell_contract()
+    shell_summary = native_shell_summary()
+    if shell_summary:
+        sections.append(shell_summary)
     delta_sections: list[str] = []
     if role_banner.strip():
         sections.append("## Active vertical role\n" + role_banner.strip())
     if skill_text:
-        sections.append("## Skill library paths\n" + skill_text)
+        sections.append(skill_text)
     if original_request.strip():
         sections.append(
             "## Original operator request\n"
@@ -138,17 +144,20 @@ def build_mission_prompt(
         )
     sections.append(
         "## This turn\n"
-        "Land one coherent, verifiable increment; update "
-        "CHECKPOINT.md, then yield. Pure reading without an artifact or "
-        "measurement is not progress.\n"
-        "Work in the current directory. Unless required, do not write "
-        "planning/spec/brief documents, initialize Git, branch/worktree, commit, "
-        "spawn subagents, or invoke meta-workflows.\n"
-        f"Budget: inspect about {max(1, int(file_read_budget))} relevant files "
-        "before editing and avoid rereads; run at most "
-        f"{max(1, int(test_run_budget))} focused verification commands plus the "
-        "decisive verifier. Exceed only after a concrete failure or code change. "
-        "Use `.autors/*/wiki` only for durable declarative knowledge.\n" + _LONG_EXPERIMENT_RULE
+        "Own the milestone end to end. Choose and revise intermediate steps without "
+        "returning to Planner for each probe or candidate; reach its decision point "
+        "or stop on a real blocker. Update CHECKPOINT.md only for another "
+        "round's blocker/next action; pure "
+        "reading without an artifact or measurement is not progress. Work in the "
+        "current directory; unless required, do not write planning/spec/brief "
+        "documents, initialize Git, branch/worktree, commit, spawn subagents, or "
+        "invoke meta-workflows.\n"
+        "Wiki is context, not a boundary: independently inspect papers, upstream "
+        "source, issues, and hardware/API docs when useful. When related attempts "
+        "repeatedly fail, prioritize fresh investigation of primary papers, official "
+        "implementations, issues, hardware/API behavior, and the performance model "
+        "before deciding the next implementation. Record durable findings in the Wiki.\n"
+        + _LONG_EXPERIMENT_RULE
     )
     learning_block = _post_task_learning_section(
         require_post_task_learning=require_post_task_learning,
@@ -158,20 +167,15 @@ def build_mission_prompt(
         sections.append(learning_block)
     sections.append(
         "## Handoff\n"
-        "If you changed code, build it before you call the work finished: "
-        "compile or type-check the packages you touched, not just the tests you "
-        "happened to run. The tests in front of you are not necessarily the "
-        "tests you are judged on, so a rename, a signature, or an import you "
-        "left unreconciled can still break the build for whoever compiles it "
-        "next. It costs seconds and is the cheapest failure to catch before the "
-        "independent Reviewer examines the round.\n"
-        "An empty `git diff` is evidence only for tracked paths: check with "
-        "`git ls-files --error-unmatch -- <path>` first. For untracked or "
-        "outside-repository artifacts, verify their direct content instead.\n"
-        "End with a short, natural account of what changed and the decisive "
-        "check or observation. Do not recite a checklist or build an evidence "
-        "packet; include only details the next researcher needs. A fresh Reviewer "
-        "handles acceptance; do not spawn a Reviewer subagent.\n"
+        "CHECKPOINT.md is the only role-maintained cross-round handoff file; do not "
+        "create handoff or evidence packets. End with a concise change summary and "
+        "decisive check. The Host invokes Reviewer only when required; do not spawn "
+        "a Reviewer subagent. End with `MILESTONE_STATUS=done` only when the full "
+        "milestone reached its decision point; otherwise write the next action to "
+        "CHECKPOINT.md and end with `MILESTONE_STATUS=continue`. Also end with "
+        "`OPERATOR_QUESTION=<question>` only when blocked by a decision or input "
+        "that only the operator can provide; otherwise use `OPERATOR_QUESTION=none`. "
+        "Never keep opening fresh rounds while waiting for that answer."
     )
     static_text = "\n\n".join(sections)
     delta_text = "\n\n".join(delta_sections)
@@ -188,9 +192,14 @@ def build_mission_prompt(
         + _LONG_EXPERIMENT_RULE
         + "\n\n"
         "## Handoff\n"
-        "End with a concise natural summary and decisive check. If you changed "
-        "code, build the packages you touched before calling it done."
+        "CHECKPOINT.md remains the only role-maintained cross-round handoff file. "
+        "End with a concise natural summary, decisive check, and "
+        "`MILESTONE_STATUS=done|continue`. End with "
+        "`OPERATOR_QUESTION=<operator-only question|none>`; a real question parks "
+        "the task instead of opening another Engineer round."
     )
+    if shell_contract:
+        compact = shell_contract + "\n\n" + compact
     if learning_block:
         compact += "\n\n" + learning_block
     return sanitize_model_visible_text(
@@ -198,11 +207,16 @@ def build_mission_prompt(
     )
 
 
-def mission_request(project_root: Path | str) -> RolePromptRequest:
+def mission_request(
+    project_root: Path | str,
+    *,
+    vertical: str | None = None,
+) -> RolePromptRequest:
     return RolePromptRequest(
         role=RoleName.ENGINEER,
         operation=MISSION,
         project_root=project_root,
+        vertical=vertical,
     )
 
 

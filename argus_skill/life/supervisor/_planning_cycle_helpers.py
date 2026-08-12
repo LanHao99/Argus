@@ -33,14 +33,22 @@ def _render_revision_request(
     revision_request: dict[str, Any],
     active_items: list[BacklogItem],
 ) -> str:
+    challenge = revision_request.get("plan_challenge")
+    challenge = challenge if isinstance(challenge, dict) else {}
     lines = [
-        "DYNAMIC PLAN REVISION REQUEST (Reviewer-authored, L4 decides):",
+        "DYNAMIC PLAN REVISION REQUEST (Reviewer evidence; Manager already routed authority):",
+        "- manager_action: " + str(challenge.get("manager_action") or "revise"),
+        "- authority_impact: " + str(challenge.get("authority_impact") or "technical"),
         "- reason: "
         + (
             _revision_reason(revision_request)
             or "Reviewer requested reconsideration; inspect the referenced "
             "artifacts and current CHECKPOINT.md before deciding."
         ),
+        "- challenged_assumption: "
+        + str(challenge.get("challenge") or _revision_reason(revision_request)),
+        "- proposed_alternative: "
+        + str(challenge.get("alternative") or "none; inspect evidence before choosing"),
         "- remaining active nodes:",
     ]
     lines.extend(
@@ -48,7 +56,11 @@ def _render_revision_request(
     )
     lines.append(
         "Return a complete replacement batch for the remaining active nodes. "
-        "Completed nodes are immutable. Do not return project_done. Exception: if "
+        "Completed nodes are immutable. User goals, safety, authority, and trust "
+        "limits remain hard constraints; candidates, methods, decomposition, and "
+        "validators are revisable working choices. Compare the proposed alternative "
+        "against the user objective instead of preserving stale mission wording. "
+        "Do not return project_done. Exception: if "
         "current_stage itself makes the prerequisite repair illegal, return "
         "waiting=true with a waiting_contract whose "
         "stage_reconciliation_required=true; emit no replacement tasks and let the "
@@ -64,11 +76,23 @@ def _research_project_done_issue(
 ) -> str:
     """Require a current-target final Reviewer ``done`` before Planner success."""
     from ...core.research_contract import (
-        resolve_research_target_contract,
+        research_target_contract,
+        resolve_research_target_level,
         resolve_research_target_set_at,
     )
+    from ...skills.vertical_select import resolve_checklist_vertical
+    from ...verticals._base import load_vertical_contract
 
-    target_contract = resolve_research_target_contract(project_root)
+    vertical = resolve_checklist_vertical(project_root)
+    supported = (
+        load_vertical_contract(vertical, project_root=project_root).research_target_levels
+        if vertical is not None
+        else ()
+    )
+    target_contract = research_target_contract(
+        supported_levels=supported,
+        selected_level=resolve_research_target_level(project_root),
+    )
     target_level = target_contract.selected_level
     if target_contract.required and target_level is None:
         return "missing_research_target_level"
@@ -172,6 +196,7 @@ class _PlanCycleState:
 
         # Set by the intake/gate phase.
         self.operator_messages: list[str] = []
+        self.fresh_operator_messages: list[str] = []
         self.revision_active_items: list[BacklogItem] = []
         self.expected_plan_id: str = ""
         self.expected_plan_version: int = 0
@@ -190,6 +215,8 @@ class _PlanCycleState:
         self.added_titles: list[str] = []
         self.added_impact_scores: list[int] = []
         self.skipped_duplicate_titles: list[str] = []
+        self.skipped_certification_reproposal_titles: list[str] = []
+        self.skipped_certification_reproposal_reasons: list[str] = []
         self.skipped_recent_failure_titles: list[str] = []
         self.skipped_subagent_family_failure_titles: list[str] = []
         self.new_plan_id: str = ""

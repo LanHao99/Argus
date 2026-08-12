@@ -58,6 +58,7 @@ describe('slash completion menu', () => {
     expect(html).toContain('aria-expanded="true"');
     expect(html).toContain(`aria-activedescendant="${slashCompletionOptionId('find')}"`);
     expect(html).toContain(`id="${SLASH_COMPLETION_LISTBOX_ID}"`);
+    expect(html).toContain('aria-keyshortcuts="Control+R Meta+R"');
     expect(html).toContain('type="file"');
     expect(html).toContain('accept=".png,.jpg,.jpeg,.webp,.pdf,.md,.markdown,.txt,.json,.csv"');
   });

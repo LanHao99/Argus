@@ -13,13 +13,19 @@ def test_release_uses_the_platform_npm_launcher() -> None:
 
 def test_release_subprocesses_use_current_python_bin(monkeypatch) -> None:
     captured = {}
-    fake_python = "/opt/argus-venv/bin/python"
-    monkeypatch.setattr(build_release.sys, "executable", fake_python)
+    monkeypatch.setattr(build_release.sys, "executable", "/opt/argus-venv/bin/python")
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
 
     def fake_run(argv, **kwargs):
         captured["argv"] = argv
         captured.update(kwargs)
+        shim_dir = kwargs["env"]["PATH"].split(os.pathsep)[0]
+        shim = Path(shim_dir) / ("python.cmd" if os.name == "nt" else "python")
+        captured["python_target"] = (
+            shim.read_text(encoding="utf-8")
+            if os.name == "nt"
+            else str(shim.resolve())
+        )
 
     monkeypatch.setattr(build_release.subprocess, "run", fake_run)
 
@@ -27,5 +33,5 @@ def test_release_subprocesses_use_current_python_bin(monkeypatch) -> None:
 
     assert captured["argv"] == ("npm", "run", "build")
     assert captured["check"] is True
-    assert captured["env"]["PATH"].split(os.pathsep)[0] == str(Path(fake_python).parent)
+    assert "/opt/argus-venv/bin/python" in captured["python_target"]
     assert captured["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(build_release.ROOT)

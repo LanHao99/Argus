@@ -49,6 +49,27 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _previous_review_summary(state: RoundLoopState) -> str:
+    """Render the settled prior verdict as a compact re-review boundary."""
+    if not state.rounds:
+        return ""
+    review = state.rounds[-1].review
+    lines = [
+        f"status: {str(review.status or '').strip()}",
+        f"reason: {str(review.reason or '').strip()}",
+        f"next_action: {str(review.next_action or '').strip() or '(none)'}",
+    ]
+    frontier = review.frontier_report if isinstance(review.frontier_report, dict) else {}
+    for key in ("resolved_obligations", "remaining_work", "new_obligations"):
+        values = frontier.get(key)
+        if isinstance(values, list) and values:
+            lines.append(
+                f"{key}: "
+                + "; ".join(str(value).strip() for value in values if str(value).strip())
+            )
+    return "\n".join(lines)
+
+
 def _active_manager_directive_for_reviewer(
     supervised_config: "SupervisedConfig",
 ) -> list[str]:
@@ -109,8 +130,43 @@ class RoundReviewerMixin:
                 )
             except Exception:  # noqa: BLE001 — advisory is non-critical context
                 log.debug("reviewer subagent advisory refresh failed", exc_info=True)
+        reviewer_session = state.reviewer_session
+        reviewer_resume_id = (
+            reviewer_session.prepare(
+                max_turns=supervised_config.role_session_max_turns,
+                max_input_tokens=supervised_config.role_session_max_input_tokens,
+            )
+            if reviewer_session is not None
+            else None
+        )
+        capsule_block = reviewer_session.prompt_block() if reviewer_session else ""
+        rotation_block = ""
+        if (
+            reviewer_session is not None
+            and round_index > 1
+            and reviewer_session.policy != "fresh"
+            and reviewer_session.action in {"fresh", "rotated"}
+        ):
+            rotation_block = (
+                "## Reviewer session rotation — judge the current round\n"
+                f"This is Reviewer round {round_index}, not round 1. Provider context "
+                "was rotated. Do not reenact an earlier Engineer stage, create its "
+                "artifacts, or ask for an approval already recorded in the canonical "
+                "checkpoint. Verify the current Engineer summary and artifacts, then "
+                "return the verdict for this round."
+            )
+        reviewer_background_context = "\n\n".join(
+            part
+            for part in (
+                capsule_block,
+                rotation_block,
+                reviewer_background_context,
+            )
+            if part
+        )
+        started_at = time.monotonic()
         try:
-            return self.reviewer.evaluate(
+            review = self.reviewer.evaluate(
                 objective=objective,
                 original_objective=original_objective or objective,
                 operator_messages=_active_manager_directive_for_reviewer(
@@ -132,7 +188,7 @@ class RoundReviewerMixin:
                 ),
                 main_error=safe_fatal_error,
                 config=replace(self.reviewer_config, working_dir=str(workdir)),
-                prev_review_summary="",
+                prev_review_summary=_previous_review_summary(state),
                 scope=scope,
                 checkpoint_path=str(checkpoint_path or ""),
                 background_context=reviewer_background_context,
@@ -146,10 +202,14 @@ class RoundReviewerMixin:
                     else ""
                 ),
                 preselected_skill_block=reviewer_skill_block,
-                resume_thread_id=None,
-                prior_static_fingerprint="",
+                resume_thread_id=reviewer_resume_id,
+                prior_static_fingerprint=(
+                    reviewer_session.static_fingerprint if reviewer_session else ""
+                ),
             )
         except Exception as exc:  # noqa: BLE001
+            if reviewer_session is not None:
+                reviewer_session.rotate("backend_exception")
             msg = f"reviewer raised {type(exc).__name__}: {exc}"
             log.exception("reviewer raised during supervised round")
             return ReviewDecision(
@@ -159,6 +219,84 @@ class RoundReviewerMixin:
                 backend_unavailable=True,
                 backend_stop_kind="backend_unavailable",
             )
+        if reviewer_session is not None:
+            if reviewer_resume_id and not review.session_resumed:
+                reviewer_session.rotate("static_context_changed")
+            reviewer_session.complete(
+                review,
+                decisive_output="\n".join(
+                    part for part in (review.reason, review.next_action) if part
+                ),
+                static_fingerprint=review.static_fingerprint,
+            )
+            if review.backend_unavailable:
+                reviewer_session.rotate("backend_failure")
+        prompt_stats = review.prompt_block_stats or {}
+        prompt_chars = int(
+            (prompt_stats.get("delta_total") or {}).get("chars", 0) or 0
+        )
+        if not review.session_resumed:
+            prompt_chars += int(
+                (prompt_stats.get("static_total") or {}).get("chars", 0) or 0
+            )
+        if on_event and reviewer_session is not None:
+            on_event({
+                "type": EventType.ROLE_SESSION_TURN,
+                "role": "reviewer",
+                "policy": reviewer_session.policy,
+                "action": reviewer_session.action,
+                "rotation_reason": reviewer_session.rotation_reason,
+                "round_index": round_index,
+                "session_id": str(review.thread_id or ""),
+                "turns_on_session": reviewer_session.turns,
+                "input_tokens": int(review.input_tokens or 0),
+                "cached_input_tokens": int(review.cached_input_tokens or 0),
+                "duration_ms": int((time.monotonic() - started_at) * 1000),
+                "prompt_chars": prompt_chars,
+                "prompt_estimated_tokens": (prompt_chars + 3) // 4,
+                "capsule_path": str(reviewer_session.path or ""),
+            })
+        signal = review.session_signal if isinstance(review.session_signal, dict) else {}
+        signal_kind = str(signal.get("kind") or "").strip()
+        signal_target = str(signal.get("target") or "").strip()
+        signal_detail = str(signal.get("detail") or "").strip()
+        if signal_kind and signal_target and supervised_config.role_session_policy != "fresh":
+            target_session = {
+                "engineer": state.engineer_session,
+                "reviewer": reviewer_session,
+            }.get(signal_target)
+            applied = False
+            if target_session is not None:
+                target_session.signal(signal_kind, signal_detail)
+                applied = True
+            elif signal_target == "planner" and supervised_config.role_session_dir:
+                from ..core.role_session import signal_role_session_file
+
+                applied = signal_role_session_file(
+                    supervised_config.role_session_dir / "planner.json",
+                    signal_kind,
+                    signal_detail,
+                )
+            if applied and on_event:
+                on_event({
+                    "type": EventType.ROLE_SESSION_TURN,
+                    "role": signal_target,
+                    "policy": supervised_config.role_session_policy,
+                    "action": "rotated",
+                    "rotation_reason": f"signal:{signal_kind}",
+                    "round_index": round_index,
+                    "signal_kind": signal_kind,
+                    "signal_detail": signal_detail,
+                    "capsule_path": str(
+                        getattr(target_session, "path", "")
+                        or (
+                            supervised_config.role_session_dir / f"{signal_target}.json"
+                            if supervised_config.role_session_dir
+                            else ""
+                        )
+                    ),
+                })
+        return review
 
     def _invoke_reviewer_with_retry(
         self,
@@ -218,7 +356,12 @@ class RoundReviewerMixin:
                 "repeated finding and the exact stage/artifact that needs "
                 "Manager-owned repair, so the mission ends now and control "
                 "returns to the Planner/Manager instead of waiting for the "
-                "hard round cap."
+                "hard continuation boundary. At or beyond that boundary, set "
+                "planner_report.forward_progress explicitly: use true when the "
+                "task frontier is still advancing, even if a local metric has "
+                "temporarily regressed; use false for a genuine no-progress "
+                "round. Do not call productive work blocked merely because the "
+                "round count is high."
             )
             if on_event and round_index == supervised_config.soft_round_limit:
                 on_event({

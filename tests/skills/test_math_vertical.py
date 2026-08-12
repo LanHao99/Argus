@@ -148,9 +148,42 @@ def test_generic_roles_load_math_skill_context_only_for_math() -> None:
     assert "without\nsolving the current instance" in create
     assert "concrete approach has failed" in adapt
 
-    direct = load_vertical("direct")
-    assert "MATHEMATICS" not in vertical_role_banner(direct, "engineer")
-    assert "MATHEMATICS" not in vertical_role_banner(direct, "reviewer")
+    software = load_vertical("software")
+    assert "MATHEMATICS" not in vertical_role_banner(software, "engineer")
+    assert "MATHEMATICS" not in vertical_role_banner(software, "reviewer")
+
+
+def test_math_completion_hook_requires_objective_and_policy_graph(tmp_path: Path) -> None:
+    from argus_skill.verticals.math import objective_mode
+    from argus_skill.verticals.math.stages import stage_completion_issues
+
+    persist_vertical(tmp_path, "math")
+    assert "objective mode" in " ".join(stage_completion_issues("scope", tmp_path))
+
+    objective_mode.set_objective(tmp_path, mode="targeted", goal="G")
+    state_path = tmp_path / "research" / "PIPELINE_STATE.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["verification_profile"] = "develop"
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    assert "PROOF_GRAPH.json" in " ".join(stage_completion_issues("solve", tmp_path))
+
+    (tmp_path / "research" / "PROOF_GRAPH.json").write_text(
+        json.dumps({
+            "goal": "G",
+            "routes": [{"name": "route", "status": "current", "evidence": ""}],
+            "nodes": {
+                "G": {
+                    "statement": "G",
+                    "status": "proved",
+                    "is_goal": True,
+                    "depends_on": [],
+                    "reviewer_confirmed": True,
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+    assert stage_completion_issues("solve", tmp_path) == ()
 
 
 def test_math_engineer_uses_one_checkpoint_without_process_artifacts() -> None:
@@ -349,6 +382,54 @@ def test_doctoral_verified_new_publishable_or_doctoral_result_succeeds() -> None
             == ""
         )
         assert _final_stage_decision(result, "doctoral") is not None
+
+
+def test_literature_review_uses_survey_quality_not_original_novelty() -> None:
+    exploratory = _research_result(
+        "literature_review",
+        novelty="known",
+        significance="exploratory",
+    )
+    publishable = _research_result(
+        "literature_review",
+        novelty="not_applicable",
+        significance="publishable",
+    )
+    doctoral = _research_result(
+        "literature_review",
+        novelty="not_applicable",
+        significance="doctoral",
+    )
+
+    assert research_completion_issue(
+        exploratory,
+        research_target_level="exploratory",
+    ) == ""
+    assert research_completion_issue(
+        publishable,
+        research_target_level="publishable",
+    ) == ""
+    assert research_completion_issue(
+        publishable,
+        research_target_level="doctoral",
+    ) == "survey_significance_below_doctoral:publishable"
+    assert research_completion_issue(
+        doctoral,
+        research_target_level="doctoral",
+    ) == ""
+
+
+def test_literature_review_cannot_leave_novelty_unverified() -> None:
+    result = _research_result(
+        "literature_review",
+        novelty="unverified",
+        significance="publishable",
+    )
+
+    assert research_completion_issue(
+        result,
+        research_target_level="publishable",
+    ) == "survey_novelty_must_be_not_applicable"
 
 
 def test_exploratory_honesty_alone_cannot_end_research() -> None:

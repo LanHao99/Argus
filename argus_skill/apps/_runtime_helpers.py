@@ -221,6 +221,7 @@ class _ExecuteState:
 
         # Set by ``_prepare_execute_mission_context``.
         self.full_task: str = ""
+        self.review_objective: str = ""
         self.seed: str | None = None
         self.mission_scope: str = ""
 
@@ -237,6 +238,8 @@ class _ExecuteState:
         self.new_tid: str | None = None
         self.auth_fail: Any = None
         self.rounds_list: list = []
+        self.final_planner_report: dict[str, Any] = {}
+        self.plan_challenge: dict[str, Any] = {}
         self.operator_question: str = ""
         self.final_review_status: str = ""
         self.final_review_next_action: str = ""

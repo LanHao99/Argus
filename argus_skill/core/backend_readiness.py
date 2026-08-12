@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
@@ -22,6 +23,7 @@ CODEX_MIN_VERSION = (0, 128, 0)
 CODEX_RECOMMENDED_VERSION = "0.144.5"
 PI_MIN_VERSION = (0, 83, 0)
 DEFAULT_MODEL_API_ROUTES = ("engineer", "reviewer", "text")
+DEFAULT_READINESS_TIMEOUT_S = 30.0
 
 SETUP_EXIT_USAGE = 2
 SETUP_EXIT_NOT_READY = 3
@@ -179,6 +181,18 @@ def _run_text(
     )
 
 
+def _run_backend_version(
+    backend: str,
+    executable: str,
+    *,
+    timeout_s: float,
+) -> subprocess.CompletedProcess[str]:
+    command: tuple[str, ...] = (executable, "--version")
+    if backend == "pi" and sys.platform == "darwin" and Path("/usr/bin/script").is_file():
+        command = ("/usr/bin/script", "-q", "/dev/null", *command)
+    return _run_text(command, timeout_s=timeout_s)
+
+
 def _extract_version(text: str) -> tuple[str, tuple[int, int, int], str] | None:
     match = _VERSION_RE.search(text)
     if match is None:
@@ -328,18 +342,23 @@ def _check_pi_model_routing(
 
 def _probe_copilot_auth(executable: str, timeout_s: float) -> tuple[bool, str]:
     """Create an ACP session without sending a prompt or spending model tokens."""
-    try:
-        from ..agent_cli.copilot_acp import CopilotAcpClient
+    from ..agent_cli.copilot_acp import CopilotAcpClient
 
-        client = CopilotAcpClient(executable, lean=True)
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        client = CopilotAcpClient(executable, lean=True, startup_timeout_s=timeout_s)
         try:
             client._ensure_started()
             client._new_session(str(Path.cwd()))
+            return True, ""
+        except RuntimeError as exc:
+            last_exc = exc
+            if attempt or not str(exc).startswith("acp initialize failed:"):
+                break
         finally:
             client.close()
-        return True, ""
-    except Exception as exc:  # noqa: BLE001
-        return False, f"{type(exc).__name__}: {exc}"
+    assert last_exc is not None
+    return False, f"{type(last_exc).__name__}: {last_exc}"
 
 
 def _probe_cli_auth(
@@ -459,7 +478,7 @@ def check_backend_readiness(
     probe_vault: bool = False,
     required_routes: Iterable[str] = DEFAULT_MODEL_API_ROUTES,
     allow_prerelease: bool | None = None,
-    timeout_s: float = 8.0,
+    timeout_s: float = DEFAULT_READINESS_TIMEOUT_S,
     env: Mapping[str, str] | None = None,
 ) -> BackendReadiness:
     env_map = env if env is not None else os.environ
@@ -504,7 +523,17 @@ def check_backend_readiness(
     report.executable = executable
 
     try:
-        version_result = _run_text((executable, "--version"), timeout_s=timeout_s)
+        for attempt in range(2):
+            try:
+                version_result = _run_backend_version(
+                    profile.backend,
+                    executable,
+                    timeout_s=timeout_s,
+                )
+                break
+            except subprocess.TimeoutExpired:
+                if attempt:
+                    raise
     except (OSError, subprocess.SubprocessError) as exc:
         report.problems.append(
             ReadinessProblem(

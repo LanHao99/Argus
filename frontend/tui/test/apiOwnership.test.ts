@@ -49,6 +49,10 @@ test('default ownership path is stable per local host and port', () => {
     defaultApiOwnershipPath('localhost', 8799, { HOME: '/home/alex' }),
     join('/home/alex', '.argus-skill', 'runtime', 'webapi-localhost-8799.owner.json'),
   );
+  assert.equal(
+    defaultApiOwnershipPath('127.0.0.2', 8799, { HOME: '/home/alex' }),
+    join('/home/alex', '.argus-skill', 'runtime', 'webapi-127.0.0.2-8799.owner.json'),
+  );
   assert.equal(defaultApiOwnershipPath('10.0.0.5', 8799, { HOME: '/home/alex' }), undefined);
 });
 
@@ -98,6 +102,54 @@ test('rejects an unknown or mismatched process', async () => {
     inspect: async () => ({
       alive: true,
       argv: ['/usr/bin/python', '-m', 'http.server', '8899'],
+    }),
+  }), null);
+});
+
+test('accepts a matching macOS ps command line', async () => {
+  const ownerFile = await tmpOwner(BASE_RECORD);
+  const owned = await readOwnedApi({
+    path: ownerFile,
+    host: BASE_RECORD.host,
+    port: BASE_RECORD.port,
+    backendBin: BASE_RECORD.backendBin,
+    inspect: async () => ({
+      alive: true,
+      argv: [],
+      commandLine: `/usr/bin/python3 ${BASE_RECORD.backendBin} --web --web-host ${BASE_RECORD.host} --web-port ${BASE_RECORD.port}`,
+    }),
+  });
+  assert.equal(owned?.pid, BASE_RECORD.pid);
+});
+
+test('accepts a matching macOS command line when the backend path contains spaces', async () => {
+  const record = { ...BASE_RECORD, backendBin: '/Users/Alex Smith/Argus/.venv/bin/argus-skill' };
+  const ownerFile = await tmpOwner(record);
+  const owned = await readOwnedApi({
+    path: ownerFile,
+    host: record.host,
+    port: record.port,
+    backendBin: record.backendBin,
+    inspect: async () => ({
+      alive: true,
+      argv: [],
+      commandLine: `/usr/bin/python3 ${record.backendBin} --web --web-port ${record.port}`,
+    }),
+  });
+  assert.equal(owned?.pid, record.pid);
+});
+
+test('rejects a macOS ps command line with the wrong port', async () => {
+  const ownerFile = await tmpOwner(BASE_RECORD);
+  assert.equal(await readOwnedApi({
+    path: ownerFile,
+    host: BASE_RECORD.host,
+    port: BASE_RECORD.port,
+    backendBin: BASE_RECORD.backendBin,
+    inspect: async () => ({
+      alive: true,
+      argv: [],
+      commandLine: `/usr/bin/python3 ${BASE_RECORD.backendBin} --web --web-port 7777`,
     }),
   }), null);
 });

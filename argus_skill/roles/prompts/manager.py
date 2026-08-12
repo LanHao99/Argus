@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import json
-import shlex
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from ...core.model_visible_text import (
     MODEL_INTEGRITY_BOUNDARY,
     sanitize_model_visible_text,
 )
+from ..task_contract import format_native_shell_command
 from .types import ChecklistMode, RoleName, RolePromptRequest
 
 FRONT_DOOR = "front_door"
@@ -32,6 +32,15 @@ _MIN_DOMAIN_STAGES = 2
 _MAX_DOMAIN_STAGES = 10
 _MIN_PLAN_STEPS = 3
 _MAX_PLAN_STEPS = 8
+
+_USER_FACING_STYLE = (
+    "Lead with the answer or current outcome. Use plain language and concrete "
+    "evidence; omit internal role traffic unless it helps the operator decide. "
+    "Never stop at GO, NO-GO, REVISE, or BLOCKED: say what cannot proceed, why, "
+    "and the next action. If a decision belongs to the operator, ask one specific "
+    "question and explain the consequence of each option. State uncertainty or a "
+    "changed judgment directly. Avoid repeated summaries and unnecessary headings.\n\n"
+)
 
 _IDENTITY_GUARD = (
     "The backend/worker named above is only the CLI process executing THIS "
@@ -72,12 +81,14 @@ def build_route_prompt(text: str) -> str:
         "Reply with exactly one word: SELF or TEAM.\n"
         "SELF = conversational or read-only Manager work: greetings, acks, "
         "capability/status questions, explanations with no durable side effect, "
-        "or operator control of the mission already running.\n"
-        "TEAM = any request to create or modify a persistent file/artifact, run "
-        "commands, perform research/engineering, or change Argus itself. Small "
-        "one-shot artifacts still use TEAM; the `direct` workflow keeps them lean.\n"
-        "When in doubt, answer TEAM — never route work that needs review to a "
-        "lone worker.\n\n"
+        "guided reading/tutoring, bounded read-only research, one low-risk "
+        "summary/note/report artifact, or operator control of the mission already "
+        "running.\n"
+        "TEAM = any code/project modification, command execution, substantive "
+        "research/engineering, multiple coordinated artifacts, or change to Argus "
+        "itself.\n"
+        "Use SELF unless the requested outcome genuinely needs the team. Never "
+        "route work that needs independent review to a lone worker.\n\n"
         f"Message:\n{(text or '').strip()}\n\n"
         "Answer:\n"
     )
@@ -86,8 +97,9 @@ def build_route_prompt(text: str) -> str:
 def build_classify_prompt(text: str) -> str:
     return (
         "Reply with exactly one word: CHAT or TASK.\n"
-        "CHAT = a greeting, an acknowledgement, small talk, or a question about "
-        "Argus / your own capabilities — there is nothing to execute.\n"
+        "CHAT = a greeting, an acknowledgement, small talk, Guided reading, tutoring, "
+        "one low-risk summary/note/report artifact, or a question about Argus / your own capabilities when no persistent "
+        "artifact or execution is requested.\n"
         "TASK = a real task or objective to carry out — a fix, a feature, an "
         "experiment, an analysis, a codebase change, or a change to Argus "
         "itself — however small, even if one worker could do it alone.\n"
@@ -111,6 +123,7 @@ def build_chat_prompt(
         f"{prefix}You are Argus Manager, powered by one {runner_backend_label()} "
         "worker. Answer as Argus Manager.\n\n"
         f"{_IDENTITY_GUARD}"
+        f"{_USER_FACING_STYLE}"
         f"{runtime}"
         f"Message:\n{objective.strip()}"
     )
@@ -125,6 +138,7 @@ def build_quick_reply_prompt(*, objective: str) -> str:
         "commands. Follow explicit wording/format requests, be concise, and do "
         "not dispatch work or invent persistent side effects.\n\n"
         f"{_IDENTITY_GUARD}"
+        f"{_USER_FACING_STYLE}"
         f"Message:\n{objective.strip()}"
     )
 
@@ -166,8 +180,21 @@ def build_simple_prompt(
         f"{identity}"
         f"You are Argus Manager, powered by one {runner_backend_label()} worker. "
         "Answer and act as Argus Manager. You have authority to intervene in the "
-        "running mission; never claim that you are read-only or lack permission.\n\n"
+        "running mission; never claim that you are read-only or lack permission. "
+        "Finish ordinary reading, explanation, bounded research, and an explicitly "
+        "requested low-risk summary/note/report directly; do not invent a vertical, "
+        "daemon, experiment, or additional artifact. For guided learning, ask only "
+        "the background question needed for the next useful lesson, then stop and "
+        "wait for the operator's reply; continue in this same Manager conversation "
+        "on the next turn. After each lesson chunk, ask at most one question that "
+        "checks the key understanding, then wait and adapt from the answer. Use "
+        "tools and Skills only as needed to ground the answer. When acting on a "
+        "material external algorithm, library/version, hardware, or third-party-"
+        "system claim that is not already grounded in the project Wiki, consult "
+        "primary sources first and retain reusable project implications there; do "
+        "not force online research onto local-only work.\n\n"
         f"{_IDENTITY_GUARD}"
+        f"{_USER_FACING_STYLE}"
         f"{runtime}"
         f"{workspace}"
         f"{knowledge}"
@@ -180,6 +207,8 @@ def build_pending_question_prompt(item: Any, answer: str) -> str:
     return (
         "You are the Manager resolving an operator-only blocker for an existing "
         "mission. Interpret the operator response in the blocked mission context. "
+        "REPLY must use plain language: one question, why it is needed, and what "
+        "happens next; never return a bare internal status. "
         "End your reply with these lines; DECISION and REPLY may run over "
         "several lines:\n"
         "IS_ANSWER=true|false\n"
@@ -270,13 +299,24 @@ def build_front_door_prompt(text: str, *, active_mission: bool = False) -> str:
         "copilot_daily_requests,copilot_daily_premium,safe_mode,show_reasoning,"
         "telegram. Questions, mentions, recommendations, and settings/budgets "
         "limited to this one task are NONE. Default NONE.\n\n"
-        "CONTROL: ABORT only for an explicit request to stop the current mission. "
-        "NO_DISPATCH only when the operator explicitly forbids queueing/starting "
-        "work or requires no persistent side effect. STEER only when "
-        "ACTIVE_MISSION=YES and the message changes that mission's direction, "
-        "priority, method, evidence, or constraints; criticism such as 'search how "
-        "others solved it' still counts. Questions about stopping and tasks merely "
-        "mentioning stop are NONE. Any control forces ROUTE SELF.\n\n"
+        "CONTROL: PAUSE for an explicit request to pause/clock out the whole "
+        "session or campaign, including a bare '停一下' / 'pause for now'; it "
+        "stops the daemon, interrupts the active mission, and prevents the next "
+        "mission from starting. ABORT only when the operator explicitly says to "
+        "abort this one current mission while leaving the session/campaign able "
+        "to continue. NO_DISPATCH only when the operator explicitly forbids "
+        "queueing/starting work or requires no persistent side effect. STEER only when "
+        "ACTIVE_MISSION=YES and the current message explicitly commands a mutation of "
+        "that active mission—such as replacing its direction, changing its method or "
+        "priority, or adding/removing a binding constraint. Questions, requests for an "
+        "explanation/status/capability check, hypotheticals, reactions, criticism, and "
+        "suggestions are NEVER STEER even when they mention another possible method. "
+        "If the message can reasonably be answered without mutating active work, use "
+        "ROUTE SELF. A new task that does not explicitly replace the active mission is "
+        "TEAM, not STEER. An explicit continue/resume after a pause is not a control "
+        "token: classify the requested work normally. If resuming requires a command, "
+        "artifact change, or TEAM execution, use ROUTE TEAM. Ambiguity defaults to no "
+        "control. Any actual control forces ROUTE SELF.\n\n"
         "AUTHORIZATION: AUTHORIZE only when the operator explicitly grants an "
         "action blocked by the active campaign. Allowed actions: validator_repair,"
         "acceptance_retry,provenance_repair,artifact_refresh,resume_blocked_work. "
@@ -285,15 +325,25 @@ def build_front_door_prompt(text: str, *, active_mission: bool = False) -> str:
         "STEER_DIRECTIVE: only for STEER, write the Manager's concise professional "
         "team instruction. Preserve the goal while choosing method, evidence, scope, "
         "and stopping condition. Never copy insults/raw wording. Else NONE.\n\n"
-        "ROUTE: SELF for conversation, read-only inspection/explanation/status, or "
-        "control. TEAM for persistent file/artifact changes, commands, research, or "
-        "engineering. Small one-shot artifacts are TEAM. If unsure, TEAM.\n\n"
+        "ROUTE: SELF for conversation, guided reading/tutoring, bounded read-only "
+        "research, read-only inspection/explanation/status, or control. Reading, "
+        "explaining, critiquing, or summarizing one existing paper is SELF while no "
+        "persistent artifact is requested. An unfamiliar subject alone never requires "
+        "TEAM or a new vertical. User corrections, terminology definitions, interpretation rules, "
+        "and response preferences are SELF: answer them first and let the isolated "
+        "post-reply learning review decide whether they merit cross-session storage. "
+        "Do not route them to TEAM merely because they should be remembered. TEAM is "
+        "for explicit project/profile file or artifact changes, commands, experiments, "
+        "engineering, background execution, multi-role review, or long-running work. "
+        "Small one-shot artifacts and resumed paused tasks with those effects are TEAM. "
+        "If unsure whether a persistent/team outcome is required, choose SELF and answer "
+        "without mutating project state.\n\n"
         "SELF_MODE: for ROUTE SELF, choose REPLY only when the message can be "
         "answered from its own text or general conversation with no file, project, "
         "runtime, artifact, or tool inspection. Choose INSPECT whenever current "
         "state or evidence must be read. For ROUTE TEAM use NONE. If unclear, "
         "choose INSPECT.\n\n"
-        "REPLY: only for SELF_MODE REPLY with no config/abort/steer/authorization, "
+        "REPLY: only for SELF_MODE REPLY with no config/pause/abort/steer/authorization, "
         "write the complete operator-facing response as one valid JSON string. "
         "Follow exact wording requests. Otherwise write NONE. Never claim file or "
         "runtime inspection in this field.\n\n"
@@ -304,7 +354,10 @@ def build_front_door_prompt(text: str, *, active_mission: bool = False) -> str:
         "submission—even if satisfying that outcome may later require a staged "
         "workflow. Choose STANDING only for explicitly open-ended optimization, "
         "monitoring, exploration, or continual improvement with no natural finish. "
-        "For ROUTE SELF use NONE. If genuinely unclear, default STANDING.\n\n"
+        "For STEER, use STANDING only when the operator explicitly orders the active "
+        "bounded mission to continue across further planning/implementation cycles; "
+        "otherwise use NONE and preserve its lifetime. For other ROUTE SELF use NONE. "
+        "If genuinely unclear, default BOUNDED for TEAM and NONE for STEER.\n\n"
         "GREETING: GREETING only when the entire message is a pure greeting with "
         "no question, request, context reference, or other content. Otherwise NONE. "
         "This is a control token, never prose, and never changes ROUTE.\n\n"
@@ -313,7 +366,7 @@ def build_front_door_prompt(text: str, *, active_mission: bool = False) -> str:
         "or session id.\n\n"
         "Reply with EXACTLY ten lines and nothing else:\n"
         "CONFIG: <SET <knob> <roles> <value>[; SET ...] | NONE>\n"
-        "CONTROL: <ABORT | NO_DISPATCH | STEER | NONE>\n"
+        "CONTROL: <PAUSE | ABORT | NO_DISPATCH | STEER | NONE>\n"
         "AUTHORIZATION: <AUTHORIZE <allowed-action[,allowed-action]> | NONE>\n"
         "STEER_DIRECTIVE: <Manager-authored team directive | NONE>\n"
         "ROUTE: <SELF | TEAM>\n"
@@ -329,11 +382,31 @@ def build_front_door_prompt(text: str, *, active_mission: bool = False) -> str:
     )
 
 
+def build_steer_confirmation_prompt(text: str, *, active_mission: bool) -> str:
+    """Render the second, mutation-only LLM gate for a proposed STEER."""
+    return (
+        "Decide whether the current operator message explicitly commands changing "
+        "the active mission. This is a mutation authorization gate, not general intent "
+        "classification.\n\n"
+        f"ACTIVE_MISSION: {'YES' if active_mission else 'NO'}\n\n"
+        "Return STEER only when ACTIVE_MISSION=YES and the message itself clearly "
+        "orders a change to that mission's direction, priority, method, evidence, or "
+        "constraints. Do not infer authorization from frustration, criticism, a feature "
+        "idea, or an implied preference. Questions and information requests are SELF, "
+        "including questions asking whether profiling exists, whether a technique is "
+        "supported, what the team is doing, why it chose a path, or whether another "
+        "approach might work. A separate new task is also SELF for this gate because it "
+        "does not mutate the active mission.\n\n"
+        "Reply with exactly one word: STEER or SELF.\n\n"
+        f"Message:\n{(text or '').strip()}\n"
+    )
+
+
 def build_domain_author_prompt(
     task: str,
     *,
     known_verticals: Sequence[str],
-    existing_data_domains: Sequence[str] = (),
+    existing_data_domains: Mapping[str, str] | Sequence[str] = (),
 ) -> str:
     """Render the prompt asking the Manager to author a new domain for ``task``."""
     known = ", ".join(f"`{v}`" for v in known_verticals) or "(none)"
@@ -369,7 +442,9 @@ def build_domain_author_prompt(
         "auto-suffixed).\n"
         "- Prefer a small, coherent stage set a domain expert would recognize, "
         "grounded in what you actually found in the repo — do not pad with "
-        "ceremony stages.\n\n"
+        "ceremony stages. Existing state is context, not an `intake`, `inventory`, "
+        "`planning`, or `certification` stage. Start with the nearest unmet action "
+        "that implements or measures the operator outcome.\n\n"
         "When your investigation is done, state the domain on these lines. "
         "Explain what you found in prose around them; only these lines are "
         "read:\n"
@@ -386,9 +461,10 @@ def build_fast_vertical_decision_prompt(
     verticals_with_purpose: dict[str, str],
     domains_with_purpose: dict[str, str] | None = None,
     existing_data_domains: Sequence[str] = (),
+    existing_data_domain_summaries: Mapping[str, str] | None = None,
     research_target_verticals: Sequence[str] = (),
 ) -> str:
-    """Render the compact, tool-free first-pass vertical router prompt."""
+    """Render the legacy tool-free router prompt for compatibility callers."""
     menu = (
         "\n".join(f"  - `{name}`: {purpose}" for name, purpose in verticals_with_purpose.items())
         or "  (none)"
@@ -399,7 +475,20 @@ def build_fast_vertical_decision_prompt(
         )
         or "  (none)"
     )
-    existing = ", ".join(f"`{v}`" for v in existing_data_domains) or "(none)"
+    mapped = (
+        dict(existing_data_domains)
+        if isinstance(existing_data_domains, Mapping)
+        else {}
+    )
+    names = tuple(mapped) if mapped else tuple(existing_data_domains)
+    summaries = {**mapped, **(existing_data_domain_summaries or {})}
+    existing = (
+        "\n".join(
+            f"  - `{name}`: {summaries.get(name, 'status=candidate')}"
+            for name in names
+        )
+        or "  (none)"
+    )
     target_verticals = ", ".join(f"`{name}`" for name in research_target_verticals) or "(none)"
     return (
         "You are the MANAGER performing your fast, tool-free classification pass. "
@@ -412,18 +501,28 @@ def build_fast_vertical_decision_prompt(
         f"{menu}\n\n"
         "## Optional built-in research domains\n"
         f"{domain_menu}\n\n"
-        f"## Existing project data domains: {existing}\n\n"
+        "## Existing project data domains\n"
+        f"{existing}\n\n"
         "## Classification rules\n"
+        "- A `status=formal` project data domain is a verified specialization. "
+        "When its purpose precisely matches the recurring platform/domain objective, "
+        "choose it over a broader built-in such as `software`, `speedrun`, or "
+        "`kernel_engineering`. Do not discard specialization merely because a generic "
+        "built-in could also perform part of the work.\n"
         "- `vertical` is the workflow/capability (software, research, math, etc.). "
         "Never use an execution topology such as direct/full/staged as a vertical.\n"
         "- `domain` is an optional built-in specialization composed with the "
         "`research` vertical. Use `chemistry` for chemistry research; otherwise "
         "use null. A non-research vertical must use null.\n"
-        "- Independently choose `workflow_mode=direct` when one Engineer mission "
-        "can finish the bounded request. An operator request explicitly limited "
-        "to one named stage/increment with later stages forbidden is always "
-        "`direct`, even when its vertical normally has a staged pipeline. Choose "
-        "`workflow_mode=staged` only when stage progression is part of this request.\n"
+        "- Independently choose `workflow_mode=direct` only when one Engineer "
+        "mission can finish one coherent work package with focused validation. "
+        "Choose `staged` when the complete outcome requires multiple dependent "
+        "phases, multiple independent evidence tracks or alternatives, a broad "
+        "survey followed by synthesis, or research followed by implementation "
+        "and validation. A single final report does not make multi-track work "
+        "direct. An operator request explicitly limited to one named stage/increment "
+        "with later stages forbidden is always `direct`, even when its vertical "
+        "normally has a staged pipeline.\n"
         "- Never invent a task-specific alias for an existing capability.\n"
         "- If the task is ambiguous, depends on unstated repository structure, "
         "or appears to require a new domain, choose `grounded`.\n\n"
@@ -457,7 +556,8 @@ def build_vertical_decision_prompt(
     *,
     verticals_with_purpose: dict[str, str],
     domains_with_purpose: dict[str, str] | None = None,
-    existing_data_domains: Sequence[str] = (),
+    existing_data_domains: Mapping[str, str] | Sequence[str] = (),
+    existing_data_domain_summaries: Mapping[str, str] | None = None,
     research_target_verticals: Sequence[str] = (),
 ) -> str:
     """Render the grounded vertical and workflow decision prompt."""
@@ -471,7 +571,20 @@ def build_vertical_decision_prompt(
         )
         or "  (none)"
     )
-    existing = ", ".join(f"`{v}`" for v in existing_data_domains) or "(none)"
+    mapped = (
+        dict(existing_data_domains)
+        if isinstance(existing_data_domains, Mapping)
+        else {}
+    )
+    names = tuple(mapped) if mapped else tuple(existing_data_domains)
+    summaries = {**mapped, **(existing_data_domain_summaries or {})}
+    existing = (
+        "\n".join(
+            f"  - `{name}`: {summaries.get(name, 'status=candidate')}"
+            for name in names
+        )
+        or "  (none)"
+    )
     target_verticals = ", ".join(f"`{name}`" for name in research_target_verticals) or "(none)"
     return (
         "You are the MANAGER of an automated research/engineering pipeline. "
@@ -481,8 +594,9 @@ def build_vertical_decision_prompt(
         "for built-ins, expert per-stage reviewer checklists. It is NOT the "
         "task-specific route or DAG of literature, experiment, proof, and review "
         "work that the Planner may create inside one mission.\n\n"
-        "Your tool-free classification pass requested grounded context. INVESTIGATE with "
-        "the full repository tool environment. Use ONE focused inspection batch of at "
+        "Repository inspection is mandatory before every formal vertical decision. "
+        "INVESTIGATE with the full repository tool environment before choosing an "
+        "existing vertical or authoring a new domain. Use ONE focused inspection batch of at "
         "most four file/search operations, then decide. Avoid broad recursive "
         "searches and do not read unrelated UI, generated, vendor, or build-output "
         "trees. Read `AGENTS.md`/`README` only when they are directly useful, and "
@@ -495,9 +609,21 @@ def build_vertical_decision_prompt(
         f"{menu}\n\n"
         "## Optional built-in research domains\n"
         f"{domain_menu}\n\n"
-        f"## Existing project data domains (also selectable): {existing}\n\n"
+        "## Existing project data domains (also selectable)\n"
+        f"{existing}\n\n"
         "## How to choose (in this order)\n"
-        "1. If a BUILT-IN vertical above fits the Task, choose it — built-ins "
+        "0. Reading, explaining, critiquing, or summarizing one existing paper "
+        "belongs on the SELF route before vertical selection; it is not a research "
+        "paper-production pipeline.\n"
+        "1. If a `status=formal` project data domain precisely matches this recurring "
+        "platform/domain objective, choose it before a broader built-in. Formal means "
+        "the specialization was already verified for this project; do not route an "
+        "exact Apple/MLX deployment task back to generic kernel engineering merely "
+        "because both can edit kernels. Match the operator's requested ACTION, not nouns "
+        "inside quoted commit titles, logs, filenames, or error text. Repository metadata "
+        "and history maintenance remains `software` even when quoted subjects mention a "
+        "formal domain; never turn those quoted subjects into implementation work.\n"
+        "2. Otherwise, if a BUILT-IN vertical above fits the Task, choose it — built-ins "
         "carry expert reviewer checklists a fresh domain would lack. E.g. a "
         "production/repository GPU kernel implementation, optimization, or PR is "
         "`kernel_engineering`; a fixed GPU/CUDA/SOL-ExecBench competition objective "
@@ -512,19 +638,32 @@ def build_vertical_decision_prompt(
         "   Chemistry research uses `vertical=research` plus `domain=chemistry`; "
         "the domain adds chemistry tools and review criteria without replacing "
         "the research-to-paper stage lifecycle.\n"
-        "2. Else if an existing project data domain fits, choose it.\n"
-        "3. ONLY if nothing above provides the stable capability the Task needs, "
+        "3. Else if another existing project data domain fits, choose it. Reuse "
+        "a `status=candidate` domain for the same recurring project objective "
+        "instead of authoring a near-duplicate; candidate means review-required, "
+        "not unavailable. Compare its listed stage skeleton with the Task. If the "
+        "same capability fits but the skeleton is materially underfit, keep the "
+        "same vertical name and return a complete revised `STAGES` list; do not "
+        "create a competing vertical. Preserve useful existing stages and add only "
+        "the missing reusable phases needed by this and future matching tasks.\n"
+        "4. ONLY if nothing above provides the stable capability the Task needs, "
         "AUTHOR a new data domain. Do not author one merely to encode this "
         "mission's route, deliverable subtype, or task DAG. A new domain is a slug "
         "name plus an ordered list of Stages (a phase of work each, lowercase slug, "
         f"{_MIN_DOMAIN_STAGES}-{_MAX_DOMAIN_STAGES} stages) grounded in what the repo needs to "
-        "reach a verifiable deliverable. The per-stage checklist is authored "
+        "reach a verifiable deliverable. Do not author intake, inventory, planning, "
+        "or certification-only stages; the first stage must implement or measure "
+        "the nearest unmet action. The per-stage checklist is authored "
         "later by the Planner; you define only the stage SKELETON.\n\n"
-        "Independently choose `workflow_mode`: `direct` when one Engineer mission "
-        "can finish the bounded task. A request explicitly limited to one named "
-        "stage/increment with later stages forbidden is always `direct`, even for "
-        "a normally staged vertical. Use `staged` only when this request requires "
-        "stage progression. This topology is never a vertical.\n\n"
+        "Independently choose `workflow_mode`: `direct` only when one Engineer "
+        "mission can finish one coherent work package with focused validation. "
+        "Use `staged` when the complete outcome requires multiple dependent phases, "
+        "multiple independent evidence tracks or alternatives, a broad survey "
+        "followed by synthesis, or research followed by implementation and "
+        "validation. A single final report does not make multi-track work direct. "
+        "A request explicitly limited to one named stage/increment with later stages "
+        "forbidden is always `direct`, even for a normally staged vertical. This "
+        "topology is never a vertical.\n\n"
         "## Task\n"
         f"{(task or '').strip()}\n\n"
         "The following built-ins declare a project-level research target contract: "
@@ -541,11 +680,28 @@ def build_vertical_decision_prompt(
         "`target_venue`; otherwise use null. Do not infer one from the topic.\n\n"
         "When your investigation is done, state the decision on its own lines. "
         "Explain what you found in prose around them — only these lines are "
-        "read. In both shapes the chosen name goes on the VERTICAL line:\n"
+        "read. `EXECUTION_TASK` must be a complete standalone Planner/Engineer "
+        "objective. Preserve every concrete operator action, deliverable, ordering "
+        "constraint, and stopping condition; clarification may make them executable "
+        "but must not replace them with cleanup, closure of existing work, documentation, "
+        "Wiki updates, hashes/checksums, manifests/provenance, or extra validation. "
+        "Include such support work only when explicitly requested or demonstrably "
+        "necessary to execute the requested action. Existing alternatives, a dirty "
+        "worktree, or optional reproducibility improvements are context, not authority "
+        "to change the goal. An explicit request for a reversible action such as a "
+        "download, build, conversion, or run authorizes a real attempt within policy; "
+        "inspect and attempt it before declaring an external blocker. Resolve pronouns "
+        "or ellipses from any marked conversation context. An output allowlist constrains "
+        "new deliverables and never authorizes deleting, moving, or overwriting existing "
+        "operator files. Never copy context markers or transcript rows into the task. "
+        "In both shapes the chosen name goes on the VERTICAL line:\n"
         "CHOICE=existing\n"
         "VERTICAL=<one of the names above>\n"
+        "STAGES=<none, or the complete revised stage skeleton for an underfit "
+        "existing project data domain>\n"
         "DOMAIN=<built-in research domain, or none>\n"
         "WORKFLOW_MODE=<direct|staged>\n"
+        "EXECUTION_TASK=<complete standalone objective>\n"
         "RATIONALE=<why it fits, citing what you found in the repo>\n"
         "RESEARCH_TARGET_LEVEL=<exploratory|publishable|doctoral when the "
         "vertical declares a target contract, otherwise none>\n"
@@ -555,6 +711,7 @@ def build_vertical_decision_prompt(
         "VERTICAL=<a new lowercase a-z0-9_ slug, distinct from every name above>\n"
         "STAGES=<stage1>; <stage2>; <stage3>\n"
         "WORKFLOW_MODE=<direct|staged>\n"
+        "EXECUTION_TASK=<complete standalone objective>\n"
         "RATIONALE=<why no existing vertical fits + what you found>\n"
         "CONFIDENCE=<0.0-1.0>\n"
         "(If your new slug collides with an existing name it is auto-suffixed.)\n"
@@ -852,11 +1009,16 @@ def manager_workspace_capability_prompt(
         project_root,
         manifest_root=manifest_root,
     )
-    workspace_q = shlex.quote(str(context["workspace"]))
-    state_q = shlex.quote(str(context["state_root"]))
-    tool = (
-        "python -m argus_skill.tools.manager_live_view "
-        f"--workspace {workspace_q} --state-dir {state_q}"
+    tool = format_native_shell_command(
+        [
+            "python",
+            "-m",
+            "argus_skill.tools.manager_live_view",
+            "--workspace",
+            str(context["workspace"]),
+            "--state-dir",
+            str(context["state_root"]),
+        ]
     )
     return (
         "## Manager workspace and rendering authority\n"
@@ -1016,6 +1178,7 @@ def build_stage_decision_prompt(
     *,
     current_stage: str,
     next_stage: str,
+    later_stages: Sequence[str] = (),
     earlier_stages: Sequence[str],
     checklist_md: str,
     review: Any,
@@ -1031,6 +1194,10 @@ def build_stage_decision_prompt(
         "(none — already first)"
     )
     advance_target = f"`{next_stage}`" if next_stage else "(none — already the final stage)"
+    legal_advance = (
+        ", ".join(f"`{stage}`" for stage in later_stages if str(stage).strip())
+        or advance_target
+    )
     status = str(getattr(review, "status", "") or "")
     reason = str(getattr(review, "reason", "") or "")
     review_source = str(getattr(review, "review_source", "reviewer") or "reviewer").strip()
@@ -1066,9 +1233,14 @@ def build_stage_decision_prompt(
             "high-impact work that belongs to an earlier stage, ROLL BACK to the "
             "earliest stage needed for that work. HOLD only when no legal work can "
             "run yet; do not mark the campaign complete merely because a report or "
-            "review artifact exists.\n"
-            f"Operator objective:\n{continuous_objective.strip()}\n\n"
+            "review artifact exists.\n\n"
         )
+    objective_block = (
+        "## Operator objective\n"
+        f"{continuous_objective.strip()}\n\n"
+        if continuous_objective.strip()
+        else ""
+    )
 
     harness_control = getattr(review, "harness_control", None)
     mission_scope_change = bool(
@@ -1115,7 +1287,7 @@ def build_stage_decision_prompt(
         )
 
     response_schema = (
-        "ACTION=advance|hold|rollback\n"
+        "ACTION=advance|hold|rollback|complete\n"
         "TARGET_STAGE=<stage name>\n"
         "REASON=<clear explanation>\n"
         + ("RESOLVES_WAIT=true|false\n" if planner_waiting else "")
@@ -1128,11 +1300,12 @@ def build_stage_decision_prompt(
     return (
         "You are the MANAGER of an automated research pipeline, and the SOLE "
         "authority over pipeline STAGE transitions. The reviewer and planner only "
-        "ADVISE; YOU decide. Choose exactly one of: ADVANCE to the next stage, "
-        "HOLD on the current stage, or ROLL BACK to an earlier stage — based only "
-        "on the evidence below.\n\n"
+        "ADVISE; YOU decide. Choose exactly one of: ADVANCE to a later stage, "
+        "HOLD on the current stage, ROLL BACK to an earlier stage, or COMPLETE "
+        "the operator objective at the final applicable stage — based only on the "
+        "evidence below.\n\n"
         f"Current stage: `{current_stage}`\n"
-        f"The ONLY legal ADVANCE target (the immediate next stage): {advance_target}\n"
+        f"Legal ADVANCE targets (later stages): {legal_advance}\n"
         f"Legal ROLLBACK targets (earlier stages): {earlier}\n\n"
         '## Current-stage checklist (what "done" requires)\n'
         f"{checklist_md}\n\n"
@@ -1145,6 +1318,7 @@ def build_stage_decision_prompt(
         f"{_advisory_planner(planner_verdict)}\n\n"
         f"{wait_resolution_block}"
         f"{mission_scope_block}"
+        f"{objective_block}"
         f"{open_ended_block}"
         f"{rendering_block.strip()}\n\n"
         "## Your decision\n"
@@ -1161,13 +1335,23 @@ def build_stage_decision_prompt(
         "- Reject construct drift: an honest evaluation of a weak proxy does not "
         "establish the value or capability of the claimed system.\n"
         "- ADVANCE only when the current stage's checklist is genuinely satisfied "
-        "with concrete evidence. Use the independent Reviewer verdict and inspect "
-        "the named artifacts when needed. A legacy `engineer_self_review` source may "
+        "with concrete evidence. Treat the independent Reviewer verdict and its "
+        "named evidence as sufficient unless they contradict the checklist; do not "
+        "search the repository or checkpoint merely to repeat the review. A legacy "
+        "`engineer_self_review` source may "
         "appear in old persisted outcomes; treat it as historical compatibility "
         "evidence, not as a current bypass.\n"
+        "- Choose the earliest later stage the operator's objective still needs. "
+        "You MAY skip intervening stages only when they are explicitly inapplicable; "
+        "name them and explain why. The harness validates and records your target; "
+        "it does not decide stage applicability.\n"
         "- HOLD when any checklist work remains, or the evidence is weak/unclear.\n"
         "- ROLL BACK only when an EARLIER stage's evidence is missing, stale, or "
         "unreliable (say which one and why).\n"
+        "- For a finite objective, COMPLETE at the current stage when its checklist "
+        "is certified, the operator objective is satisfied, and every later stage "
+        "is inapplicable. For an open-ended campaign, do not COMPLETE. Reviewer "
+        "certification is evidence, not an automatic completion decision.\n"
         "- Stage names recorded in `research/GROUND_TRUTH.md` are dated "
         "observations, not live stage invariants. A legal pipeline transition "
         "naturally makes that observation historical; NEVER roll back solely "
@@ -1233,6 +1417,7 @@ __all__ = [
     "build_skill_placement_prompt",
     "build_skill_placements_prompt",
     "build_stage_decision_prompt",
+    "build_steer_confirmation_prompt",
     "build_vertical_decision_prompt",
     "manager_rendering_prompt",
     "manager_workspace_capability_prompt",
