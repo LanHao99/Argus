@@ -88,6 +88,15 @@ python -m pip install --upgrade pip
 pip install -e .
 ```
 
+源码安装后可用一条命令更新：
+
+```bash
+argus update
+```
+
+该命令只会更新干净且已配置 upstream 的分支，使用 fast-forward 拉取，并在版本
+变化时刷新 editable 安装。更新后再次运行 `argus`，即可安全接管旧 WebAPI 和 daemon。
+
 ### 连接后端
 
 ```bash
