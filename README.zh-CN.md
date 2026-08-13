@@ -285,8 +285,8 @@ Argus 会识别过期的本地 WebAPI 与 daemon，并在受控任务边界完�
 
 ## 微信群
 
-扫码加入 Argus 交流群。二维码有效期以图片中的提示为准；如果已经过期，请在 Issue 中联系维护者更新。
+扫码加入 Argus 交流群。该二维码有效期至 2026 年 8 月 20 日；如果已经过期，请在 Issue 中联系维护者更新。
 
 <p align="center">
-  <img src="docs/assets/argus-wechat-group.jpg" width="360" alt="Argus 微信交流群二维码">
+  <img src="docs/assets/argus-wechat-group-20260820.jpg" width="360" alt="Argus 微信交流群二维码，有效期至 2026 年 8 月 20 日">
 </p>

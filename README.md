@@ -294,8 +294,8 @@ replaces them at a controlled task boundary.
 
 ## WeChat community
 
-Scan the QR code below to join the Argus community. The expiry date is printed in the image; if it has expired, open an Issue and ask the maintainers for the latest code.
+Scan the QR code below to join the Argus community. This code is valid through August 20, 2026; if it has expired, open an Issue and ask the maintainers for the latest code.
 
 <p align="center">
-  <img src="docs/assets/argus-wechat-group.jpg" width="360" alt="Argus WeChat community QR code">
+  <img src="docs/assets/argus-wechat-group-20260820.jpg" width="360" alt="Argus WeChat community QR code valid through August 20, 2026">
 </p>
