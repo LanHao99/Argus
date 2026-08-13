@@ -99,7 +99,7 @@ argus --setup --non-interactive \
   --accept-house-rules
 ```
 
-Use `copilot`, `pi`, `codex`, `claude`, `opencode`, or `grok` for `--backend`.
+Use `copilot`, `pi`, `codex`, `claude`, `opencode`, `grok`, or `qoder` for `--backend`.
 
 For Grok Build, install and authenticate the official xAI CLI first:
 

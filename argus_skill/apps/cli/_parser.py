@@ -283,7 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     capability_grp.add_argument(
         "--backend",
-        choices=("copilot", "codex", "claude", "opencode", "pi", "grok"),
+        choices=("copilot", "codex", "claude", "opencode", "pi", "grok", "qoder"),
         default=None,
         help="backend selected by --setup, --doctor, or this daemon launch",
     )
