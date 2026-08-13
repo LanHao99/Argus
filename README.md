@@ -94,19 +94,25 @@ pip install -e .
 ### Connect a backend
 
 ```bash
-argus --setup --non-interactive \
-  --backend copilot \
-  --accept-house-rules
+argus --setup
 ```
 
 Use `copilot`, `pi`, `codex`, `claude`, `opencode`, `grok`, or `qoder` for `--backend`.
+If you have an OpenAI-compatible endpoint, setup installs Pi when needed and
+configures it directly:
+
+```bash
+ARGUS_SETUP_API_KEY=... argus --setup --non-interactive \
+  --api-url https://api.example.com/v1 \
+  --api-model model-id
+```
 
 For Grok Build, install and authenticate the official xAI CLI first:
 
 ```bash
 curl -fsSL https://x.ai/cli/install.sh | bash
 grok login
-argus --setup --non-interactive --backend grok --accept-house-rules
+argus --setup --non-interactive --backend grok
 ```
 
 `XAI_API_KEY` is also supported for headless environments. Argus uses Grok's

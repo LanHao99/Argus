@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:frontend/web/dist/assets/ResearchWorkbenchPanel-BuqjQdQc.js
 import{r as m,j as e,u as B,a as Os,b as ss}from"./query-BpxuCIcN.js";import{a as Us,c as Ae,r as ws,b as Ws,u as Ns,_ as Vs}from"./index-Bn5VhNH4.js";import{M as Hs,r as Bs}from"./markdown-B5ILJD_j.js";import"./icons-BHmFHwhB.js";/**
+========
+import{r as m,j as e,u as B,a as Os,b as ss}from"./query-BpxuCIcN.js";import{a as Us,c as Ae,r as ws,b as Ws,u as Ns,_ as Vs}from"./index-CdQxFqrv.js";import{M as Hs,r as Bs}from"./markdown-B5ILJD_j.js";import"./icons-BHmFHwhB.js";/**
+>>>>>>>> d6daa84 (feat(setup): streamline provider onboarding):frontend/web/dist/assets/ResearchWorkbenchPanel-Bqt5-TQ7.js
  * @license lucide-react v0.468.0 - ISC
  *
  * This source code is licensed under the ISC license.
