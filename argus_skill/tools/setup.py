@@ -91,6 +91,7 @@ _SUPPORTED_AGENT_BACKENDS = (
     "pi",
     "grok",
     "qoder",
+    "dsh",
 )
 _BACKEND_INSTALL_COMMANDS = {
     "copilot": "npm install -g @github/copilot",
@@ -100,6 +101,7 @@ _BACKEND_INSTALL_COMMANDS = {
     "pi": "npm install -g --ignore-scripts @earendil-works/pi-coding-agent",
     "grok": "curl -fsSL https://x.ai/cli/install.sh | bash",
     "qoder": "npm install -g @qoder-ai/qodercli",
+    "dsh": "npm install -g @deepseek-ai/dsh",
 }
 
 
@@ -172,11 +174,11 @@ def _configure_runner_backend(requested: str | None = None) -> str | None:
     selected = (
         str(requested).strip().lower()
         if requested is not None
-        else _prompt("Backend (copilot/codex/claude/opencode/pi/grok/qoder)", default).lower()
+        else _prompt("Backend (copilot/codex/claude/opencode/pi/grok/qoder/dsh)", default).lower()
     )
     if selected not in _SUPPORTED_AGENT_BACKENDS:
         print(_yellow(f"  Unknown backend '{selected}'."))
-        print(_dim("    Choose one of: copilot, codex, claude, opencode, pi, grok, qoder"))
+        print(_dim("    Choose one of: copilot, codex, claude, opencode, pi, grok, qoder, dsh"))
         print()
         return None
 
@@ -197,6 +199,9 @@ def _configure_runner_backend(requested: str | None = None) -> str | None:
         elif selected == "qoder":
             print(_dim("    Then authenticate with: qodercli login"))
             print(_dim("    Or set QODER_PERSONAL_ACCESS_TOKEN for headless use."))
+        elif selected == "dsh":
+            print(_dim("    Then export DEEPSEEK_API_KEY=<key> in the launching environment,"))
+            print(_dim("    or set it through the dsh web Models page."))
         print()
         return None
 

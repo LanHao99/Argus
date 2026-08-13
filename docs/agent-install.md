@@ -41,6 +41,7 @@ command -v pi || true
 command -v opencode || true
 command -v grok || true
 command -v qodercli || true
+command -v dsh || true
 ```
 
 Select the CLI hosting the current conversation when possible. Otherwise,
@@ -56,6 +57,7 @@ values are:
 | OpenCode | `opencode` |
 | xAI Grok Build | `grok` |
 | Qoder CLI | `qoder` |
+| DeepSeek Harness | `dsh` |
 
 If prerequisites are missing, explain the proposed installation command and
 obtain approval before using a system package manager, `sudo`, or making a
@@ -105,7 +107,7 @@ From the Argus checkout, run:
 
 ```bash
 .venv/bin/argus --setup --non-interactive \
-  --backend <copilot|codex|claude|pi|opencode|grok|qoder>
+  --backend <copilot|codex|claude|pi|opencode|grok|qoder|dsh>
 ```
 
 Windows PowerShell:

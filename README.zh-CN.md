@@ -36,7 +36,7 @@
 | **四角色运行时** | Manager、Planner、Engineer 和 Reviewer 分别拥有明确的权威与职责。 |
 | **真实工具调用** | Agent 直接使用文件、终端、实验、API 和可检查的产物。 |
 | **领域扩展** | Vertical 可以定义专属阶段、工具、证据要求与完成标准。 |
-| **多种 Backend** | 支持 GitHub Copilot CLI、Pi、Codex CLI、Claude Code、OpenCode 与 Grok Build。 |
+| **多种 Backend** | 支持 GitHub Copilot CLI、Pi、Codex CLI、Claude Code、OpenCode、Grok Build、Qoder 与 DeepSeek Harness。 |
 
 ## 运行模型
 
@@ -49,7 +49,7 @@
 
 项目可以停止、恢复、跨运行时替换，并从最近一次已验证位置继续推进。
 
-**原生 Backend：** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode` · `Grok Build`
+**原生 Backend：** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode` · `Grok Build` · `Qoder` · `DeepSeek Harness`
 
 ## 快速安装
 
@@ -103,7 +103,7 @@ argus update
 argus --setup
 ```
 
-`--backend` 可使用 `copilot`、`pi`、`codex`、`claude`、`opencode`、`grok` 或 `qoder`。
+`--backend` 可使用 `copilot`、`pi`、`codex`、`claude`、`opencode`、`grok`、`qoder` 或 `dsh`。
 如果已有 OpenAI-compatible URL，setup 会在需要时自动安装 Pi 并完成配置：
 
 ```bash
