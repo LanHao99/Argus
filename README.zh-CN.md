@@ -105,7 +105,7 @@ argus --setup --non-interactive \
   --accept-house-rules
 ```
 
-`--backend` 可使用 `copilot`、`pi`、`codex`、`claude`、`opencode` 或 `grok`。
+`--backend` 可使用 `copilot`、`pi`、`codex`、`claude`、`opencode`、`grok` 或 `qoder`。
 
 使用 Grok Build 时，请先安装并登录 xAI 官方 CLI：
 

@@ -32,7 +32,7 @@ except ImportError:  # pragma: no cover
 
 _WEB_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"})
 _PROVIDERS = frozenset(
-    {"codex", "copilot", "claude", "opencode", "pi", "grok", "memory"}
+    {"codex", "copilot", "claude", "opencode", "pi", "grok", "qoder", "memory"}
 )
 _CALL_STATUSES = frozenset({"completed", "error", "denied"})
 _PRICING_STATUSES = frozenset({"priced", "partial", "unpriced", "not_billed", "unknown"})

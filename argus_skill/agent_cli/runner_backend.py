@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 from typing import Literal
 
-RunnerBackend = Literal["codex", "claude", "copilot", "opencode", "pi", "grok"]
+RunnerBackend = Literal["codex", "claude", "copilot", "opencode", "pi", "grok", "qoder"]
 
 BACKEND_CODEX: RunnerBackend = "codex"
 BACKEND_CLAUDE: RunnerBackend = "claude"
@@ -13,7 +13,16 @@ BACKEND_COPILOT: RunnerBackend = "copilot"
 BACKEND_OPENCODE: RunnerBackend = "opencode"
 BACKEND_PI: RunnerBackend = "pi"
 BACKEND_GROK: RunnerBackend = "grok"
+BACKEND_QODER: RunnerBackend = "qoder"
 DEFAULT_RUNNER_BACKEND: RunnerBackend = BACKEND_CODEX
+
+# Qoder's official CLI (``qodercli``) is a Claude Code fork: it accepts the same
+# headless argv (``-p --output-format stream-json --model … --permission-mode …
+# --resume …``) and emits the same stream-json event schema. So ``qoder`` reuses
+# the ``claude`` command builder, event consumer, sandbox policy, and prompt
+# delivery verbatim. This family set is the single source of truth for "treat it
+# like claude" so those call sites never drift apart.
+CLAUDE_FAMILY: frozenset[str] = frozenset({BACKEND_CLAUDE, BACKEND_QODER})
 
 
 def normalize_runner_backend(raw: str | None) -> RunnerBackend:
@@ -28,6 +37,8 @@ def normalize_runner_backend(raw: str | None) -> RunnerBackend:
         return BACKEND_PI
     if value == BACKEND_GROK:
         return BACKEND_GROK
+    if value == BACKEND_QODER:
+        return BACKEND_QODER
     return BACKEND_CODEX
 
 
@@ -42,6 +53,8 @@ def default_runner_bin(backend: RunnerBackend) -> str:
         return "pi"
     if backend == BACKEND_GROK:
         return "grok"
+    if backend == BACKEND_QODER:
+        return "qodercli"
     return "codex"
 
 

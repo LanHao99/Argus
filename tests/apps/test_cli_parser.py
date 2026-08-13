@@ -107,6 +107,11 @@ def test_parser_accepts_grok_backend() -> None:
     assert args.backend == "grok"
 
 
+def test_parser_accepts_qoder_backend() -> None:
+    args = build_parser().parse_args(["--doctor", "--backend", "qoder"])
+    assert args.backend == "qoder"
+
+
 def test_parser_exposes_cli_doctor() -> None:
     args = build_parser().parse_args(["--doctor", "--backend", "copilot"])
 
