@@ -55,6 +55,9 @@ A project can stop, resume, survive a runtime replacement, and continue from its
 Manager/Planner/Engineer/Reviewer runtime as a custom agent. See
 **[Harbor integration](docs/harbor.md)**.
 
+**Coding-agent plugin:** use the packaged MCP bridge and host-specific Skills
+without changing the core runtime. See **[Plugin quick start](docs/plugin.md)**.
+
 ## Quick Install
 
 Choose the section for your operating system. Do not mix commands between

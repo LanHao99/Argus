@@ -49,11 +49,14 @@
 
 项目可以停止、恢复、跨运行时替换，并从最近一次已验证位置继续推进。
 
-**原生 Backend：** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode` · `Grok Build`
+**原生 Backend：** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode` · `Grok Build` · `Qoder` · `DeepSeek Harness`
 
 **Harbor 评测：** Harbor Framework 可以把完整的有界 Argus
 Manager/Planner/Engineer/Reviewer 运行时作为自定义 Agent 直接调用。配置和边界见
 **[Harbor 接入说明](docs/harbor.md)**。
+
+**Code Agent 插件：** 可通过打包的 MCP bridge 和宿主 Skills 使用 Argus，不修改
+核心 runtime。参见 **[插件快速入门](docs/plugin.md)**。
 
 ## 快速安装
 
