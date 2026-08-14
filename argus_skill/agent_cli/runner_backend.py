@@ -64,7 +64,26 @@ def default_runner_bin(backend: RunnerBackend) -> str:
 
 
 def _resolve_explicit_candidate(candidate: Path) -> str | None:
-    return shutil.which(str(candidate))
+    # Test fixtures, portable shims, and some user-local launchers are valid
+    # extensionless files even on Windows. ``shutil.which`` applies PATHEXT and
+    # can miss those exact candidates, so honor an explicitly located file
+    # before probing sibling .exe/.cmd variants.
+    if candidate.is_file() and (os.name == "nt" or os.access(candidate, os.X_OK)):
+        return str(candidate)
+    resolved = shutil.which(str(candidate))
+    if resolved:
+        return resolved
+    if os.name != "nt" or candidate.suffix:
+        return None
+    extensions = os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep)
+    wanted = {f"{candidate.name}{extension}".casefold() for extension in extensions if extension}
+    try:
+        for entry in candidate.parent.iterdir():
+            if entry.is_file() and entry.name.casefold() in wanted:
+                return str(entry)
+    except OSError:
+        return None
+    return None
 
 
 def resolve_runner_bin(
@@ -82,6 +101,12 @@ def resolve_runner_bin(
         return resolved
     if Path(expanded).parent != Path("."):
         return None
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry:
+            continue
+        resolved = _resolve_explicit_candidate(Path(entry) / expanded)
+        if resolved:
+            return resolved
     if chosen == BACKEND_OPENCODE:
         opencode_home = Path.home() / ".opencode" / "bin" / expanded
         resolved = _resolve_explicit_candidate(opencode_home)

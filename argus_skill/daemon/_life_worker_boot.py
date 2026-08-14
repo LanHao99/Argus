@@ -105,7 +105,7 @@ class LifeWorkerBootMixin:
         # Keep every child shell on the same framework interpreter even when
         # Argus was launched through a Windows console script without activating
         # its virtual environment first.
-        configure_framework_python_env(prepend_python_path=True)
+        configure_framework_python_env()
         if self.config.global_root is not None:
             os.environ["ARGUS_SKILL_HOME"] = str(self.config.global_root.resolve())
 

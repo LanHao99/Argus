@@ -27,15 +27,15 @@ def configure_framework_python_env(
     env: MutableMapping[str, str] | None = None,
     *,
     executable: str | os.PathLike[str] | None = None,
-    prepend_python_path: bool = False,
 ) -> MutableMapping[str, str]:
     """Expose the owning Argus interpreter and make bare ``python`` prefer it.
 
     Console-script launchers and unactivated Windows virtual environments can
     run Argus with a correct interpreter while leaving an unrelated Anaconda or
-    system Python first on ``PATH``. Always expose the explicit interpreter.
-    Daemon callers may also request the historical PATH prepend needed by agent
-    child shells; ordinary CLI commands leave executable selection untouched.
+    system Python first on ``PATH``. Agent CLIs inherit that mismatch and then
+    fail to import Argus helpers. Preserve an explicit framework interpreter,
+    keep frozen-runtime command shims first, and de-duplicate PATH using the
+    host platform's separator and case rules.
     """
     target_env = env if env is not None else os.environ
     framework_python = str(
@@ -46,10 +46,10 @@ def configure_framework_python_env(
         target_env.setdefault("PYTHONUTF8", "1")
         target_env.setdefault("PYTHONIOENCODING", "utf-8")
 
-    if not prepend_python_path:
-        return target_env
-
     preferred: list[str] = []
+    runtime_bin = str(target_env.get("ARGUS_SKILL_RUNTIME_BIN") or "").strip()
+    if runtime_bin:
+        preferred.append(runtime_bin)
     python_path = Path(framework_python).expanduser()
     if python_path.parent != Path(".") or python_path.is_absolute():
         preferred.append(str(python_path.resolve().parent))

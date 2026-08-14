@@ -182,10 +182,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="enable continuous planner mode (daemon generates new tasks "
              "when backlog is empty)",
     )
-    daemon_grp.add_argument(
+    objective_source = daemon_grp.add_mutually_exclusive_group()
+    objective_source.add_argument(
         "--objective",
         default="",
         help="continuous improvement objective (used with --continuous)",
+    )
+    objective_source.add_argument(
+        "--objective-file",
+        default=None,
+        metavar="PATH",
+        help="read the continuous objective from UTF-8 PATH instead of "
+             "process arguments",
     )
     daemon_grp.add_argument(
         "--resume-continuous",
@@ -288,6 +296,26 @@ def build_parser() -> argparse.ArgumentParser:
         dest="doctor",
         action="store_true",
         help=argparse.SUPPRESS,
+    )
+    capability_grp.add_argument(
+        "--fix-safe",
+        action="store_true",
+        help="with --doctor/-doctor: apply registered SAFE repairs and verify",
+    )
+    capability_grp.add_argument(
+        "--json",
+        action="store_true",
+        help="with --doctor/-doctor: print stable machine-readable findings",
+    )
+    capability_grp.add_argument(
+        "--deep",
+        action="store_true",
+        help="with --doctor/-doctor: include bounded backend authentication probes",
+    )
+    capability_grp.add_argument(
+        "--verify",
+        action="store_true",
+        help="with --doctor/-doctor: label the run as post-repair verification",
     )
     capability_grp.add_argument(
         "--backend",
@@ -463,6 +491,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="label this run as post-repair verification",
     )
+    doctor_parser.add_argument(
+        "--fix-safe",
+        action="store_true",
+        help="apply registered SAFE repairs, then rerun Doctor",
+    )
     repair_parser = subparsers.add_parser(
         "repair",
         help="Plan or apply registered Argus recovery actions",
@@ -476,7 +509,27 @@ def build_parser() -> argparse.ArgumentParser:
     repair_mode.add_argument(
         "--safe",
         action="store_true",
-        help="apply only registered SAFE actions, then verify",
+        help="plan and apply only registered SAFE actions, then verify",
+    )
+    repair_mode.add_argument(
+        "--apply",
+        metavar="PLAN_ID",
+        help="apply one persisted plan (CONSENT actions also require --yes)",
+    )
+    repair_mode.add_argument(
+        "--prepare-pr",
+        metavar="PLAN_ID",
+        help="write a sanitized upstream repair report without publishing it",
+    )
+    repair_mode.add_argument(
+        "--submit-pr",
+        metavar="PLAN_ID",
+        help="submit an explicitly authorized prepared repository repair",
+    )
+    repair_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm CONSENT actions or external PR publication",
     )
     repair_parser.add_argument(
         "--json",

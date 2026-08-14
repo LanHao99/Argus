@@ -51,6 +51,10 @@ A project can stop, resume, survive a runtime replacement, and continue from its
 
 **Native backends:** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode` · `Grok Build` · `Qoder` · `DeepSeek Harness`
 
+**Harbor evaluation:** Harbor Framework can invoke the complete bounded Argus
+Manager/Planner/Engineer/Reviewer runtime as a custom agent. See
+**[Harbor integration](docs/harbor.md)**.
+
 ## Quick Install
 
 ### Requirements
@@ -153,9 +157,19 @@ argus
 ```
 
 ```bash
-argus --doctor   # verify the installation
-argus --status   # inspect the current runtime
+argus doctor                 # read-only cross-platform diagnosis
+argus -doctor --fix-safe     # apply registered SAFE repairs, then verify
+argus repair --plan --json   # persist a reviewable repair plan
+argus repair --apply <ID> --yes
+argus repair --prepare-pr <ID>  # create a sanitized report; never auto-publishes
+argus --status               # inspect the current runtime
 ```
+
+Doctor never executes recommendation text. Repairs come from a closed action
+registry, revalidate the target immediately before mutation, persist an audit
+history under `ARGUS_SKILL_HOME/repairs/`, and require explicit consent for
+environment changes or external publication. See
+[Doctor and Repair Pipeline](docs/doctor-repair-pipeline.md).
 
 ### Codex / Claude Code plugin
 
