@@ -154,6 +154,7 @@ def _prewarm_manager_context(
             "low",
         ).value.strip() or "low"
         prewarm_classifier(
+            run_label="manager-frontdoor-classify",
             model=resolve_manager_classify_model(),
             reasoning_effort=classify_effort,
             lean=True,
@@ -161,6 +162,7 @@ def _prewarm_manager_context(
             front_door_session=True,
         )
         prewarm_reply(
+            run_label="simple-1",
             model=resolve_manager_reply_model(),
             reasoning_effort=resolve_role_reasoning_effort(
                 "ARGUS_SKILL_SELF_REASONING_EFFORT",
