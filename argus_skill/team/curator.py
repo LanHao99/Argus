@@ -24,6 +24,7 @@ tracked pool, so every lifecycle path (live-owner accounting, deadline reaping,
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import logging
 import os
 import re
@@ -38,6 +39,8 @@ from typing import Any, Callable
 from . import completion, leaderboard, pool, registry, roster, task_board
 
 log = logging.getLogger(__name__)
+_SYNCHRONIZE = 0x00100000
+_WAIT_TIMEOUT = 0x00000102
 
 
 def _windows_process_command_line(pid: int) -> str:
@@ -62,14 +65,47 @@ def _windows_process_command_line(pid: int) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def _terminate_windows_tree(pid: int) -> None:
-    subprocess.run(
-        ["taskkill.exe", "/PID", str(int(pid)), "/T", "/F"],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
+def _terminate_windows_tree(pid: int) -> bool:
+    try:
+        result = subprocess.run(
+            ["taskkill.exe", "/PID", str(int(pid)), "/T", "/F"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
+def _open_windows_process_handle(pid: int) -> int:
+    windll = getattr(ctypes, "windll", None)
+    if windll is None:
+        return 0
+    open_process = windll.kernel32.OpenProcess
+    open_process.argtypes = (ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32)
+    open_process.restype = ctypes.c_void_p
+    return int(open_process(_SYNCHRONIZE, False, int(pid)) or 0)
+
+
+def _close_windows_process_handle(handle: int) -> None:
+    windll = getattr(ctypes, "windll", None)
+    if handle > 0 and windll is not None:
+        close_handle = windll.kernel32.CloseHandle
+        close_handle.argtypes = (ctypes.c_void_p,)
+        close_handle.restype = ctypes.c_int
+        close_handle(ctypes.c_void_p(handle))
+
+
+def _windows_process_handle_alive(handle: int) -> bool:
+    windll = getattr(ctypes, "windll", None)
+    if handle <= 0 or windll is None:
+        return False
+    wait = windll.kernel32.WaitForSingleObject
+    wait.argtypes = (ctypes.c_void_p, ctypes.c_uint32)
+    wait.restype = ctypes.c_uint32
+    return wait(ctypes.c_void_p(handle), 0) == _WAIT_TIMEOUT
 
 
 def _pid_is_teammate(pid: int, member_id: str, root: Path | None = None) -> bool:
@@ -139,13 +175,40 @@ class _AdoptedProc:
     ``_terminate`` rely on, so adopted children flow through every owned-child
     path unchanged."""
 
-    def __init__(self, pid: int, member_id: str, root: Path) -> None:
+    def __init__(
+        self,
+        pid: int,
+        member_id: str,
+        root: Path,
+        *,
+        windows_handle: int = 0,
+    ) -> None:
         self.pid = int(pid)
         self._member_id = member_id
         self._root = Path(root)
+        self._windows_handle = (
+            windows_handle or _open_windows_process_handle(self.pid)
+            if os.name == "nt"
+            else 0
+        )
+        if os.name == "nt" and self._windows_handle <= 0:
+            raise OSError(f"could not retain Windows process handle for pid {self.pid}")
 
     def poll(self) -> int | None:
+        if os.name == "nt":
+            if _windows_process_handle_alive(self._windows_handle):
+                return None
+            self._close_windows_handle()
+            return 0
         return None if _pid_is_teammate(self.pid, self._member_id, self._root) else 0
+
+    def _close_windows_handle(self) -> None:
+        handle = self._windows_handle
+        self._windows_handle = 0
+        _close_windows_process_handle(handle)
+
+    def __del__(self) -> None:
+        self._close_windows_handle()
 
     def wait(self, timeout: float | None = None) -> int:
         end = (time.time() + timeout) if timeout else None
@@ -311,10 +374,22 @@ class Curator:
             child_key = _child_key(root, str(mid or ""))
             if not mid or child_key in self._children or not pid:
                 continue
-            if m.get("status") != "running" or not _pid_is_teammate(int(pid), mid, root):
+            if m.get("status") != "running":
                 continue
+            if os.name == "nt":
+                handle = _open_windows_process_handle(int(pid))
+                if handle <= 0:
+                    continue
+                if not _pid_is_teammate(int(pid), mid, root):
+                    _close_windows_process_handle(handle)
+                    continue
+                proc = _AdoptedProc(int(pid), mid, root, windows_handle=handle)
+            else:
+                if not _pid_is_teammate(int(pid), mid, root):
+                    continue
+                proc = _AdoptedProc(int(pid), mid, root)
             self._children[child_key] = TrackedTeammate(
-                _AdoptedProc(int(pid), mid, root), member_id=mid,
+                proc, member_id=mid,
                 task_id=m.get("task_id", ""), root=root, started_at=now,
                 timeout_s=self.teammate_timeout_s, hard_grace_s=self.hard_grace_s)
             adopted.append(mid)
@@ -381,20 +456,20 @@ class Curator:
                 "failed_dead_cwd": failed_dead_cwd}
 
     # ---- reaping --------------------------------------------------------
-    def _terminate(self, tt: TrackedTeammate, *, grace: float = 2.0) -> None:
+    def _terminate(self, tt: TrackedTeammate, *, grace: float = 2.0) -> bool:
         """Kill one tracked child's process group (SIGTERM → grace → SIGKILL)."""
         proc = tt.proc
         if proc.poll() is not None:
-            return
+            return True
         if os.name == "nt":
             _terminate_windows_tree(proc.pid)
             with contextlib.suppress(subprocess.TimeoutExpired):
                 proc.wait(timeout=max(grace, 5.0))
-            return
+            return proc.poll() is not None
         try:
             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
         except (OSError, ProcessLookupError):
-            return
+            return proc.poll() is not None
         try:
             proc.wait(timeout=grace)
         except subprocess.TimeoutExpired:
@@ -402,6 +477,7 @@ class Curator:
                 os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
             with contextlib.suppress(subprocess.TimeoutExpired):
                 proc.wait(timeout=5)
+        return proc.poll() is not None
 
     def _reap(self, now: float | None = None) -> dict[str, list[str]]:
         """Drop children that exited on their own; hard-kill+free those past the
@@ -425,7 +501,12 @@ class Curator:
                 dropped.append(tt.member_id)
                 continue
             if now >= tt.hard_deadline():
-                self._terminate(tt)
+                if not self._terminate(tt):
+                    log.error(
+                        "curator: timed-out teammate %s remained alive after termination",
+                        tt.member_id,
+                    )
+                    continue
                 with contextlib.suppress(Exception):
                     task_board.fail(tt.root, tt.task_id, reason="curator hard-timeout")
                     roster.set_member_status(tt.root, tt.member_id, "failed")
@@ -607,7 +688,12 @@ class Curator:
         stopped_roots: set[Path] = set()
         for tt in list(self._children.values()):
             status = "stopped" if tt.alive() else "exited"
-            self._terminate(tt)
+            if not self._terminate(tt):
+                log.error(
+                    "curator: teammate %s remained alive during shutdown",
+                    tt.member_id,
+                )
+                continue
             stopped_roots.add(tt.root)
             with contextlib.suppress(Exception):
                 roster.set_member_status(tt.root, tt.member_id, status)

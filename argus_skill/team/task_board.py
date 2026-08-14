@@ -7,11 +7,11 @@ teammates can never own the same task.
 """
 from __future__ import annotations
 
-import hashlib
 import os
 from pathlib import Path
 from typing import Any
 
+from ..core.portable_filename import portable_filename_component
 from . import _store
 
 
@@ -29,21 +29,8 @@ def _task_filename(task_id: str) -> str:
     invalid = not task_id or task_id in {".", ".."} or any(c in task_id for c in "/\\\0")
     if invalid:
         raise ValueError(f"invalid task_id for task board path: {task_id!r}")
-    if os.name == "nt":
-        stem = task_id.split(".", 1)[0].casefold()
-        windows_unsafe = (
-            any(ord(char) < 32 or char in '<>:"|?*' for char in task_id)
-            or task_id.endswith((" ", "."))
-            or stem in {
-                "con", "prn", "aux", "nul",
-                *(f"com{i}" for i in range(1, 10)),
-                *(f"lpt{i}" for i in range(1, 10)),
-            }
-        )
-        if windows_unsafe:
-            digest = hashlib.sha256(task_id.encode("utf-8")).hexdigest()
-            return f"id-{digest}.json"
-    return f"{task_id}.json"
+    component = portable_filename_component(task_id, windows=os.name == "nt")
+    return f"{component}.json"
 
 
 def _path(root: Path, task_id: str) -> Path:

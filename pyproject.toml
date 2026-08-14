@@ -137,6 +137,7 @@ artifacts = [
   "frontend/web/dist/**",
 ]
 include = [
+  "argus_doctor.py",
   "argus_skill/**",
   "tests/**",
   "frontend/tui/bundle/**",

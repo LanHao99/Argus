@@ -4,6 +4,7 @@ import json
 import os
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 from argus_skill.team import curator as cur
 from argus_skill.team import leaderboard, pool, registry, roster, task_board
@@ -68,6 +69,64 @@ def test_adopt_reclaims_running_roster_orphan_once(tmp_path: Path, monkeypatch) 
     assert c.live_owner_ids(root) == {"w1"}
     # idempotent: a second pass does not re-adopt
     assert c._adopt_orphans(root, now=200.0) == []
+
+
+def test_windows_adopted_process_uses_retained_handle_for_polling(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    alive = iter((True, False))
+    closed: list[int] = []
+    monkeypatch.setattr(cur, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(cur, "_open_windows_process_handle", lambda _pid: 77)
+    monkeypatch.setattr(cur, "_windows_process_handle_alive", lambda _handle: next(alive))
+    monkeypatch.setattr(cur, "_close_windows_process_handle", closed.append)
+    monkeypatch.setattr(
+        cur,
+        "_pid_is_teammate",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("poll must not launch another identity query")
+        ),
+    )
+
+    proc = cur._AdoptedProc(4242, "w1", tmp_path)
+
+    assert proc.poll() is None
+    assert proc.poll() == 0
+    assert closed == [77]
+
+
+def test_windows_adoption_opens_handle_before_identity_check(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    root = tmp_path / "team"
+    roster.add_member(root, {
+        "id": "w1",
+        "pid": 4242,
+        "cwd": str(tmp_path),
+        "task_id": "t::a",
+        "status": "running",
+    })
+    order: list[str] = []
+    monkeypatch.setattr(cur, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(
+        cur,
+        "_open_windows_process_handle",
+        lambda _pid: order.append("open") or 77,
+    )
+    monkeypatch.setattr(
+        cur,
+        "_pid_is_teammate",
+        lambda *_args, **_kwargs: order.append("verify") or True,
+    )
+    monkeypatch.setattr(cur, "_windows_process_handle_alive", lambda _handle: True)
+    monkeypatch.setattr(cur, "_close_windows_process_handle", lambda _handle: None)
+
+    c = _fake_curator(tmp_path)
+
+    assert c._adopt_orphans(root, now=100.0) == ["w1"]
+    assert order == ["open", "verify"]
 
 
 def test_adopt_then_stop_kills_real_orphan(tmp_path: Path) -> None:
@@ -365,7 +424,24 @@ def test_reap_hard_timeout_killpg_and_fails_task(tmp_path: Path, monkeypatch) ->
     assert task["state"] == "failed"
     member = next(m for m in roster.members(root) if m["id"] == tt.member_id)
     assert member["status"] == "failed"
-    assert c._children == {}
+
+
+def test_reap_keeps_tracking_when_termination_does_not_finish(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    root = tmp_path / "team"
+    task_board.form(root, [{"task_id": "t::a", "objective": "x"}])
+    c = _fake_curator(tmp_path, teammate_timeout_s=10.0, hard_grace_s=5.0)
+    c._refill(root, width=1, cwd=tmp_path, now=100.0)
+    monkeypatch.setattr(c, "_terminate", lambda _tt: False)
+
+    result = c._reap(now=200.0)
+
+    assert result["hard_killed"] == []
+    assert len(c._children) == 1
+    task = next(task for task in task_board.snapshot(root) if task["task_id"] == "t::a")
+    assert task["state"] == "claimed"
 
 
 def test_reap_keeps_alive_child_within_deadline(tmp_path: Path) -> None:

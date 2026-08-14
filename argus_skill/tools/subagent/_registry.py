@@ -6,7 +6,6 @@ ledger, structured RunWriter signal readers, and usage accounting helpers.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import subprocess
@@ -20,6 +19,7 @@ except ImportError:  # pragma: no cover - non-POSIX fallback
     fcntl = None  # type: ignore[assignment]
 
 from ...core.daemon_lock import is_pid_running
+from ...core.portable_filename import portable_filename_component
 from ._text import _tail_file
 
 # ---------------------------------------------------------------------------
@@ -57,14 +57,7 @@ _QUIET_LOGS_ENV = "ARGUS_SUBAGENT_QUIET_LOGS"
 # ---------------------------------------------------------------------------
 
 def _task_file_component(task_id: str) -> str:
-    text = str(task_id)
-    windows_unsafe = os.name == "nt" and (
-        any(ord(char) < 32 or char in '<>:"|?*' for char in text)
-        or text.endswith((" ", "."))
-    )
-    if windows_unsafe or any(char in text for char in "/\\\0"):
-        return f"id-{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
-    return text
+    return portable_filename_component(str(task_id), windows=os.name == "nt")
 
 
 def _registry_path(task_id: str) -> Path:

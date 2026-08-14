@@ -29,6 +29,7 @@ def test_release_digest_covers_runtime_and_frontend_build_inputs() -> None:
         "frontend/web/package-lock.json",
         "frontend/web/vite.config.ts",
         "frontend/web/index.html",
+        "argus_doctor.py",
         ".agents/plugins/marketplace.json",
         ".claude-plugin/marketplace.json",
         "plugins/argus/.codex-plugin/plugin.json",
