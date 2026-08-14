@@ -10,6 +10,7 @@ from pathlib import Path
 from ..core.sandbox import sandboxed_child_env
 from ._sandbox_commands import (
     _OPENCODE_FULL_ACCESS_AGENT,
+    _OPENCODE_NO_TOOLS_AGENT,
     _OPENCODE_READ_ONLY_AGENT,
 )
 from .copilot_home import apply_copilot_home
@@ -89,6 +90,14 @@ def _opencode_read_only_env() -> dict[str, str]:
             "glob": "allow",
             "grep": "allow",
         },
+    )
+
+
+def _opencode_no_tools_env() -> dict[str, str]:
+    return _opencode_agent_env(
+        agent_name=_OPENCODE_NO_TOOLS_AGENT,
+        description="Argus tool-free diagnostic agent.",
+        permission={"*": "deny"},
     )
 
 
@@ -204,9 +213,7 @@ class PromptDeliveryMixin:
             return prepared, payload, None
         executable = str(prepared[0] if prepared else "").casefold()
         if executable.endswith((".cmd", ".bat")):
-            raise RuntimeError(
-                "Claude requires a native executable for safe prompt delivery"
-            )
+            return prepared, prompt, None
         max_bytes = 24_000 if os.name == "nt" else 100_000
         if len(prompt.encode("utf-8")) > max_bytes:
             raise RuntimeError(
@@ -241,6 +248,8 @@ class PromptDeliveryMixin:
                     dict(os.environ), options, self.agent_bin
                 )
             return None
+        if self.backend == BACKEND_OPENCODE and options.disable_tools:
+            return _opencode_no_tools_env()
         if (
             self.backend == BACKEND_OPENCODE
             and options.sandbox_mode == "read-only"

@@ -36,7 +36,7 @@ Most agents are optimized for one conversation or one coding turn. Argus is buil
 | **Four-role runtime** | Manager, Planner, Engineer, and Reviewer have distinct authority and responsibilities. |
 | **Real tool use** | Agents work through files, terminals, experiments, APIs, and inspectable artifacts. |
 | **Domain extensibility** | Verticals can define custom stages, tools, evidence requirements, and completion standards. |
-| **Multiple backends** | Run with GitHub Copilot CLI, Pi, Codex CLI, Claude Code, OpenCode, Grok Build, Qoder, or DeepSeek Harness. |
+| **Multiple backends** | Run with GitHub Copilot CLI, Pi, Codex CLI, Claude Code, OpenCode, or Grok Build. |
 
 ## Runtime model
 
@@ -49,7 +49,7 @@ Most agents are optimized for one conversation or one coding turn. Argus is buil
 
 A project can stop, resume, survive a runtime replacement, and continue from its latest verified position.
 
-**Native backends:** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode` · `Grok Build` · `Qoder` · `DeepSeek Harness`
+**Native backends:** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode` · `Grok Build`
 
 **Harbor evaluation:** Harbor Framework can invoke the complete bounded Argus
 Manager/Planner/Engineer/Reviewer runtime as a custom agent. See
@@ -57,67 +57,108 @@ Manager/Planner/Engineer/Reviewer runtime as a custom agent. See
 
 ## Quick Install
 
-### Requirements
+Choose the section for your operating system. Do not mix commands between
+platforms.
 
-- Python 3.11+
-- Node.js 22+
-- One supported Agent CLI installed and authenticated through its official login flow
+All platforms need:
 
-### 🚀 Agent-assisted installation (recommended)
+- one supported Agent CLI already installed;
+- that CLI authenticated through its official login flow;
+- Node.js 22+ for the terminal cockpit.
 
-> [!TIP]
-> **Skip the manual installation steps.** Send the complete prompt below to
-> Codex CLI, Claude Code, GitHub Copilot CLI, Pi, OpenCode, or Grok Build. The agent will
-> inspect the environment, install Argus, connect the current backend, and
-> verify it with `argus --doctor`.
+The public preview is installed directly from the current GitHub archive until
+the first PyPI release is published.
 
-```text
-Read https://github.com/lbx154/Argus/blob/main/docs/agent-install.md and follow
-it to install and configure Argus on my machine. Prefer the Agent CLI currently
-running this conversation as the Argus backend. Perform the environment checks,
-installation, configuration, and argus --doctor verification. Before account
-login, sudo, global configuration changes, or any other action requiring human
-authorization, explain why and wait for my approval. Never ask me to paste a
-password, access token, or API key into the conversation.
+### Windows 10/11 — direct pip install, no virtual environment
+
+Install Python 3.11+ from [python.org](https://www.python.org/downloads/windows/)
+and select **Add Python to PATH** in the installer. Then open a new PowerShell:
+
+```powershell
+py -m pip install --upgrade pip
+py -m pip install --upgrade "argus-skill @ https://github.com/lbx154/Argus/archive/refs/heads/main.zip"
+$Scripts = py -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+$env:Path = "$Scripts;$env:Path"
+argus --setup
+argus doctor --deep --advisor auto
+argus
 ```
 
-The agent will follow the **[installation execution contract](docs/agent-install.md)**.
+`argus --setup` does not report success after only finding the CLI. It performs
+backend/auth checks and one real tool-restricted Agent turn. If `argus` is not
+found in a later PowerShell window, confirm that the Python installer's Scripts
+directory is on PATH; the `$Scripts` lines above make it available immediately
+in the current window.
 
-### Install
+Until the first versioned PyPI release, refresh the moving GitHub preview with:
+
+```powershell
+py -m pip install --upgrade --force-reinstall "argus-skill @ https://github.com/lbx154/Argus/archive/refs/heads/main.zip"
+```
+
+Windows currently supports installation, Manager chat, pairing, Web/TUI, and
+terminal-scoped daemon control. Detached subagents remain a POSIX/WSL2 feature;
+native Windows fails explicitly instead of claiming a background task started.
+The Windows Desktop installer is documented separately in
+**[Windows Desktop](docs/windows-desktop.md)**.
+
+### macOS — managed command install, no manual virtual environment
+
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then:
+
+```bash
+uv tool install --python 3.12 \
+  "argus-skill @ https://github.com/lbx154/Argus/archive/refs/heads/main.zip"
+argus --setup
+argus doctor --deep --advisor auto
+argus
+```
+
+Upgrade later with:
+
+```bash
+uv tool install --force --python 3.12 \
+  "argus-skill @ https://github.com/lbx154/Argus/archive/refs/heads/main.zip"
+```
+
+### Linux — isolated source venv
+
+Linux servers keep an explicit venv so Python, CUDA tooling, and long-running
+process ownership remain reproducible:
 
 ```bash
 git clone https://github.com/lbx154/Argus.git
 cd Argus
-```
-
-Linux and macOS:
-
-```bash
 python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e .
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e .
+.venv/bin/argus --setup
+.venv/bin/argus doctor --deep --advisor auto
+.venv/bin/argus
 ```
 
-Windows PowerShell:
+### Agent-assisted installation
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e .
+Send this prompt to an already installed Code Agent:
+
+```text
+Read https://github.com/lbx154/Argus/blob/main/docs/agent-install.md and install
+Argus using the section for this operating system. Prefer the Agent CLI running
+this conversation as the Argus backend. Do not create a venv on Windows or
+macOS; keep the documented venv on Linux. Run setup through its real Agent-turn
+smoke test, then run `argus doctor --deep --advisor auto`. Before account login,
+sudo, or global configuration changes, explain why and wait for approval. Never
+ask me to paste a password, token, or API key into the conversation.
 ```
 
-The Windows commands call the virtual environment directly, so activation is
-not required. Before using the shorter `argus` commands below, either run
-`.\.venv\Scripts\Activate.ps1` or invoke `.\.venv\Scripts\argus.exe` directly.
+The agent follows the **[installation execution contract](docs/agent-install.md)**.
 
-### Connect a backend
+### Backend notes
 
-```bash
-argus --setup
-```
-
-Use `copilot`, `pi`, `codex`, `claude`, `opencode`, `grok`, `qoder`, or `dsh` for `--backend`.
+Use `copilot`, `pi`, `codex`, `claude`, `opencode`, `grok`, `qoder`, or `dsh`
+for `--backend`. Setup adopts a model from the selected CLI's own catalog when
+one is available; otherwise it keeps that CLI's native default. It does not
+inject an OpenAI model id into Claude Code, Pi, OpenCode, Grok, Qoder, or dsh.
 If you have an OpenAI-compatible endpoint, setup installs Pi when needed and
 configures it directly:
 
@@ -138,6 +179,7 @@ argus --setup --non-interactive --backend grok
 `XAI_API_KEY` is also supported for headless environments. Argus uses Grok's
 native headless JSON stream, resumes sessions by ID, and keeps role prompts out
 of process arguments.
+In PowerShell, use a backtick instead of `\` for line continuation.
 
 #### Choosing a provider on the multi-provider CLIs
 
@@ -163,6 +205,10 @@ restarts once set there.
 configured provider is not one you hold a key for, or when a model id you
 selected is not on offer.
 
+Use `argus --config-help` to inspect the effective model and its source for each
+role. Catalog listing is backend-specific, for example `pi --list-models`,
+`opencode auth list`, or `qodercli --list-models`.
+
 Full details, including the breaking change for Pi deployments that relied on
 the old implicit `github-copilot` prefix: **[backend providers](docs/backend-providers.md)**.
 
@@ -176,10 +222,6 @@ argus
 argus --doctor   # verify the installation
 argus --status   # inspect the current runtime
 ```
-
-### Codex / Claude Code plugin
-
-One-command installation and usage: [docs/plugin.md](docs/plugin.md).
 
 ## Interfaces
 
@@ -219,8 +261,7 @@ and Simplified Chinese. Use the language button in the session sidebar to
 switch; the selection is saved in the browser.
 
 ```bash
-argus --web --no-open    # start without opening a browser
-argus --web --port 8800  # use another port
+argus --web --web-port 8800  # use another port
 ```
 
 #### Remote server over SSH
@@ -228,7 +269,7 @@ argus --web --port 8800  # use another port
 On the server:
 
 ```bash
-argus --web --no-open
+argus --web
 ```
 
 On your computer:
@@ -246,7 +287,7 @@ A non-loopback bind is always protected by a bearer token. If
 `ARGUS_SKILL_WEB_TOKEN` is set it is used; otherwise one is minted for that run:
 
 ```bash
-argus --web --host 0.0.0.0 --port 8799 --no-open
+argus --web --web-host 0.0.0.0 --web-port 8799
 ```
 
 This prints the address other devices can reach, the token, and a QR code.
@@ -279,13 +320,25 @@ export ARGUS_SKILL_TELEGRAM_BOT_TOKEN=... ARGUS_SKILL_TELEGRAM_CHAT_ID=...
 
 Both bots serve the same commands (`/add`, `/status`, `/nudge`, `/backlog`, …).
 The web UI is installable to the home screen and pairs by scanning the QR code
-printed by `argus --web --host 0.0.0.0`.
+printed by `argus --web --web-host 0.0.0.0`.
 
 See **[docs/mobile.md](docs/mobile.md)** for the full setup.
 
 ## Advanced usage
 
 Argus is designed to be changed, not merely configured.
+
+### Autonomy level
+
+The default `pragmatic` mode handles recoverable engineering choices—timeouts, failed tests, benchmark sizing, and technical routes—without interrupting you. It asks only for credentials, more spending, irreversible/outward-facing actions, or changes to an operator-owned acceptance boundary.
+
+```bash
+export ARGUS_SKILL_AUTONOMY_MODE=cautious    # ask on every explicit question
+export ARGUS_SKILL_AUTONOMY_MODE=pragmatic   # default: recover technical issues
+export ARGUS_SKILL_AUTONOMY_MODE=autonomous  # maximize reversible execution
+```
+
+The Web configuration view and `/config` expose the same setting.
 
 ### Adapt the runtime
 
@@ -302,31 +355,50 @@ GitHub Copilot, Pi, Codex, Claude Code, OpenCode, Grok Build, OpenClaw, or Herme
 - **Native Argus backends:** GitHub Copilot CLI, Pi, Codex CLI, Claude Code, OpenCode, Grok Build
 - **External agent operators:** OpenClaw, Hermes, or any agent that can use a shell or HTTP API
 
+For durable missions, install or adapt the portable
+[`argus-runtime-orchestration` Agent Skill](integrations/agent-skills/argus-runtime-orchestration/SKILL.md).
+It defines the two-party operator model, the active `Needs you` intervention loop,
+host-specific adapters, evidence boundaries, and closeout checks.
+
 Useful entry points:
 
 ```bash
-argus --doctor
+argus doctor
 argus --status
-argus --web --no-open
+argus --web
 ```
 
 The most capable setup is often an Argus instance deliberately adapted to your own ambitious field and way of working.
 
 ## Update
 
+Windows:
+
+```powershell
+pip install --upgrade "argus-skill @ https://github.com/lbx154/Argus/archive/refs/heads/main.zip"
+```
+
+macOS:
+
+```bash
+uv tool upgrade argus-skill
+```
+
+Linux source checkout:
+
 ```bash
 argus update
 ```
 
-The command refuses dirty or detached checkouts, fast-forwards the configured
+The Linux source command refuses dirty or detached checkouts, fast-forwards the configured
 upstream, and refreshes the editable installation when the revision changes.
 Run `argus` afterward; it detects stale local WebAPI and daemon processes and
 replaces them at a controlled task boundary.
 
 ## WeChat community
 
-Scan the QR code below to join the Argus community. This code is valid through August 20, 2026; if it has expired, open an Issue and ask the maintainers for the latest code.
+Scan the QR code below to join the Argus community. The expiry date is printed in the image; if it has expired, open an Issue and ask the maintainers for the latest code.
 
 <p align="center">
-  <img src="docs/assets/argus-wechat-group-20260820.jpg" width="360" alt="Argus WeChat community QR code valid through August 20, 2026">
+  <img src="docs/assets/argus-wechat-group.jpg" width="360" alt="Argus WeChat community QR code">
 </p>
