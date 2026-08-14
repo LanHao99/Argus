@@ -63,6 +63,10 @@ def default_runner_bin(backend: RunnerBackend) -> str:
     return "codex"
 
 
+def _resolve_explicit_candidate(candidate: Path) -> str | None:
+    return shutil.which(str(candidate))
+
+
 def resolve_runner_bin(
     backend: RunnerBackend | str | None,
     configured: str | None = None,
@@ -80,8 +84,9 @@ def resolve_runner_bin(
         return None
     if chosen == BACKEND_OPENCODE:
         opencode_home = Path.home() / ".opencode" / "bin" / expanded
-        if opencode_home.is_file() and os.access(opencode_home, os.X_OK):
-            return str(opencode_home)
+        resolved = _resolve_explicit_candidate(opencode_home)
+        if resolved:
+            return resolved
     if chosen == BACKEND_DSH:
         # dsh is installed through the nvm-managed Node toolchain, whose bin
         # directory is absent from non-interactive PATHs (the daemon may be
@@ -93,8 +98,9 @@ def resolve_runner_bin(
                 if candidate.is_file() and os.access(candidate, os.X_OK):
                     return str(candidate)
     user_local = Path.home() / ".local" / "bin" / expanded
-    if user_local.is_file() and os.access(user_local, os.X_OK):
-        return str(user_local)
+    resolved = _resolve_explicit_candidate(user_local)
+    if resolved:
+        return resolved
     return None
 
 

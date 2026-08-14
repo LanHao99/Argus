@@ -58,6 +58,7 @@ def _source_files(root: Path) -> Iterable[Path]:
         "plugins/argus/**/*.yaml",
         "plugins/argus/bin/*",
         "plugins/argus/install.sh",
+        "argus_doctor.py",
         "pyproject.toml",
     )
     tracked = _git_tracked_files(root)
