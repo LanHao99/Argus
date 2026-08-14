@@ -85,12 +85,28 @@ Agent 将遵循 **[安装执行规范](docs/agent-install.md)**。
 ```bash
 git clone https://github.com/lbx154/Argus.git
 cd Argus
+```
 
+Linux 和 macOS：
+
+```bash
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-pip install -e .
+python -m pip install -e .
 ```
+
+Windows PowerShell：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e .
+```
+
+Windows 命令直接调用虚拟环境中的 Python，因此无需激活。执行下文较短的 `argus`
+命令前，可运行 `.\.venv\Scripts\Activate.ps1`，或直接调用
+`.\.venv\Scripts\argus.exe`。
 
 源码安装后可用一条命令更新：
 
