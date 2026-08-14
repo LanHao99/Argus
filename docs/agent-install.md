@@ -139,9 +139,9 @@ then either fix it or ask the user to choose another installed backend.
 
 Argus sends a model id to the backend CLI, and its shared default belongs to
 the OpenAI catalog. Setup adopts a backend-appropriate model where Argus knows
-one, but for any backend it does not, an unset model resolves to an id that CLI
-cannot serve — every call then fails, and the Manager reports it only as
-`[not dispatched] Manager could not classify this message`.
+one. For a single-catalog backend whose catalog conflicts with that default,
+leaving the model unset makes every call fail, and the Manager reports it only
+as `[not dispatched] Manager could not classify this message`.
 
 `argus --setup` reports a `model selector` failure when it can prove the id is
 wrong, so a clean setup already covers most cases. Confirm what each role will
