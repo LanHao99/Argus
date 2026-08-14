@@ -21,6 +21,7 @@ from ..core.backend_readiness import (
     SETUP_EXIT_PERSISTENCE,
     SETUP_EXIT_USAGE,
     check_backend_readiness,
+    default_model_for_backend,
     format_backend_readiness,
     persist_validated_profile,
 )
@@ -356,6 +357,12 @@ def _run_noninteractive_setup(
         assert pi_config is not None
         os.environ["ARGUS_SKILL_PI_PROVIDER"] = "argus"
         os.environ["ARGUS_SKILL_MODEL"] = pi_config[0]
+    # Adopt the backend's own model BEFORE readiness runs, so the check below
+    # judges the selector this machine will really send. Mirrors how the Pi
+    # branch above seeds ARGUS_SKILL_MODEL ahead of the same call.
+    adopted_model = default_model_for_backend(selected)
+    if adopted_model:
+        os.environ["ARGUS_SKILL_MODEL"] = adopted_model
     _ensure_default_house_rules_prompt()
     report = check_backend_readiness(
         selected,
@@ -369,7 +376,7 @@ def _run_noninteractive_setup(
     stream.write(rendered + "\n")
     if not report.ok:
         return SETUP_EXIT_NOT_READY
-    if not persist_validated_profile(report):
+    if not persist_validated_profile(report, model=adopted_model):
         sys.stderr.write("argus: readiness passed but profile persistence failed\n")
         return SETUP_EXIT_PERSISTENCE
     if pi_config is not None and not _persist_pi_profile(pi_config[0]):
@@ -1296,6 +1303,12 @@ def run_setup(
             print(_dim("  Using Pi's existing login/configuration."))
         print()
 
+    adopted_model = default_model_for_backend(selected_backend)
+    if adopted_model:
+        os.environ["ARGUS_SKILL_MODEL"] = adopted_model
+        print(f"  {_green('✓')} Model selected → {adopted_model}")
+        print()
+
     house_rules_path = _ensure_default_house_rules_prompt()
     if house_rules_path is not None:
         print(f"  {_green('✓')} House rules created")
@@ -1312,7 +1325,7 @@ def run_setup(
     if not report.ok:
         print(_yellow("  Setup is not ready; the backend profile was not persisted."))
         return SETUP_EXIT_NOT_READY
-    if not persist_validated_profile(report):
+    if not persist_validated_profile(report, model=adopted_model):
         print(_yellow("  Readiness passed but backend profile persistence failed."))
         return SETUP_EXIT_PERSISTENCE
     if pi_config is not None and not _persist_pi_profile(pi_config[0]):

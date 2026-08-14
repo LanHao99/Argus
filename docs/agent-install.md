@@ -135,7 +135,50 @@ Use the backend selected in steps 1-2. Do not silently switch to another
 provider after a failed readiness check. Diagnose the reported failure first,
 then either fix it or ask the user to choose another installed backend.
 
-### 5. Verify the installation
+### 5. Confirm the model selector
+
+Argus sends a model id to the backend CLI, and its shared default belongs to
+the OpenAI catalog. Setup adopts a backend-appropriate model where Argus knows
+one. For a single-catalog backend whose catalog conflicts with that default,
+leaving the model unset makes every call fail, and the Manager reports it only
+as `[not dispatched] Manager could not classify this message`.
+
+`argus --setup` reports a `model selector` failure when it can prove the id is
+wrong, so a clean setup already covers most cases. Confirm what each role will
+actually send:
+
+```bash
+.venv/bin/argus --config-help
+```
+
+The `[models]` section prints every model knob with its resolved value and
+where that value came from (`env`, `persisted`, or `default`). A value marked
+`(default)` was chosen by nobody — check that it belongs to the selected
+backend's catalog.
+
+If it does not, list the ids the account really holds. The listing command is
+backend-specific:
+
+```bash
+pi --list-models
+opencode auth list
+qodercli --list-models
+```
+
+Set the chosen id in the environment Argus launches from:
+
+```bash
+export ARGUS_SKILL_MODEL=<model-id>
+```
+
+`ARGUS_SKILL_MODEL` is the shared default; per-role knobs
+(`ARGUS_SKILL_MANAGER_MODEL`, `ARGUS_SKILL_ENGINEER_MODEL`,
+`ARGUS_SKILL_REVIEWER_MODEL`, `ARGUS_SKILL_PLAN_MODEL`) override it. Ask before
+writing the export into a shell startup file. Inside the running cockpit the
+operator can also say "switch the model to <model-id>", which persists the
+choice for future sessions.
+
+### 6. Verify the installation
 
 Run:
 
@@ -152,12 +195,13 @@ If the user wants `argus` available outside the checkout, offer a safe PATH or
 launcher option appropriate for their operating system. Do not edit shell
 startup files without approval.
 
-### 6. Report the result
+### 7. Report the result
 
 Tell the user:
 
 - the Argus installation directory;
 - the selected backend;
+- the model id each role will use;
 - whether `argus --doctor` passed;
 - the exact command to start Argus;
 - any remaining manual action.
