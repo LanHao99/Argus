@@ -36,7 +36,7 @@ Most agents are optimized for one conversation or one coding turn. Argus is buil
 | **Four-role runtime** | Manager, Planner, Engineer, and Reviewer have distinct authority and responsibilities. |
 | **Real tool use** | Agents work through files, terminals, experiments, APIs, and inspectable artifacts. |
 | **Domain extensibility** | Verticals can define custom stages, tools, evidence requirements, and completion standards. |
-| **Multiple backends** | Run with GitHub Copilot CLI, Pi, Codex CLI, Claude Code, OpenCode, or Grok Build. |
+| **Multiple backends** | Run with GitHub Copilot CLI, Pi, Codex CLI, Claude Code, OpenCode, Grok Build, Qoder, or DeepSeek Harness. |
 
 ## Runtime model
 
@@ -49,7 +49,7 @@ Most agents are optimized for one conversation or one coding turn. Argus is buil
 
 A project can stop, resume, survive a runtime replacement, and continue from its latest verified position.
 
-**Native backends:** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode` · `Grok Build`
+**Native backends:** `GitHub Copilot CLI` · `Pi` · `OpenAI Codex CLI` · `Claude Code` · `OpenCode` · `Grok Build` · `Qoder` · `DeepSeek Harness`
 
 ## Quick Install
 
@@ -97,7 +97,7 @@ pip install -e .
 argus --setup
 ```
 
-Use `copilot`, `pi`, `codex`, `claude`, `opencode`, `grok`, or `qoder` for `--backend`.
+Use `copilot`, `pi`, `codex`, `claude`, `opencode`, `grok`, `qoder`, or `dsh` for `--backend`.
 If you have an OpenAI-compatible endpoint, setup installs Pi when needed and
 configures it directly:
 
