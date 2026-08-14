@@ -244,6 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cockpit_grp.add_argument(
         "--web-host",
+        "--host",
         default="127.0.0.1",
         help="bind host for --web (default 127.0.0.1; use 0.0.0.0 to reach it "
              "from a phone on the same network). A non-loopback bind always "

@@ -170,6 +170,26 @@ def test_public_admin_flags_stay_on_python_admin_path(monkeypatch) -> None:
     ]
 
 
+def test_documented_web_aliases_before_action_stay_on_python_admin_path(
+    monkeypatch,
+) -> None:
+    seen = []
+    monkeypatch.setattr(
+        tui_launcher,
+        "_run_python_admin",
+        lambda argv: seen.append(argv) or 7,
+    )
+    monkeypatch.setattr(
+        tui_launcher,
+        "_bundle_path",
+        lambda: (_ for _ in ()).throw(AssertionError("TUI must not launch")),
+    )
+    argv = ["--host", "127.0.0.1", "--port", "8801", "--web"]
+
+    assert tui_launcher.main(argv) == 7
+    assert seen == [argv]
+
+
 def test_admin_subcommands_stay_on_python_admin_path(monkeypatch) -> None:
     seen = []
     monkeypatch.setattr(
