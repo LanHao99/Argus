@@ -158,9 +158,17 @@ argus
 ```
 
 ```bash
-argus --doctor   # 检查安装与后端
-argus --status   # 查看当前运行状态
+argus doctor                  # 只读跨平台诊断
+argus -doctor --fix-safe      # 执行已注册的 SAFE 修复并复验
+argus repair --plan --json    # 持久化可审查修复计划
+argus repair --apply <ID> --yes
+argus repair --prepare-pr <ID>  # 生成脱敏报告，不会自动发布
+argus --status                # 查看当前运行状态
 ```
+
+Doctor 不会执行诊断文本中的任意命令。所有修复来自封闭动作注册表，执行前会重新验证
+目标身份，审计历史保存在 `ARGUS_SKILL_HOME/repairs/`；环境变更和外部发布必须显式
+授权。完整约束见 [Doctor 与 Repair Pipeline](docs/doctor-repair-pipeline.md)。
 
 ### Codex / Claude Code 插件
 

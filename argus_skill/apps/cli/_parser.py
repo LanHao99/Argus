@@ -13,7 +13,8 @@ Human cockpit:
 
 First-time setup and diagnostics:
   argus --setup
-  argus --doctor
+  argus doctor
+  argus repair --plan
   argus update
 
 Automation:
@@ -291,6 +292,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="run backend/auth, capability, daemon, and state diagnostics",
     )
     capability_grp.add_argument(
+        "-doctor",
+        dest="doctor",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    capability_grp.add_argument(
+        "--fix-safe",
+        action="store_true",
+        help="with --doctor/-doctor: apply registered SAFE repairs and verify",
+    )
+    capability_grp.add_argument(
+        "--json",
+        action="store_true",
+        help="with --doctor/-doctor: print stable machine-readable findings",
+    )
+    capability_grp.add_argument(
+        "--deep",
+        action="store_true",
+        help="with --doctor/-doctor: include bounded backend authentication probes",
+    )
+    capability_grp.add_argument(
+        "--verify",
+        action="store_true",
+        help="with --doctor/-doctor: label the run as post-repair verification",
+    )
+    capability_grp.add_argument(
         "--backend",
         choices=("copilot", "codex", "claude", "opencode", "pi", "grok", "qoder", "dsh"),
         default=None,
@@ -445,6 +472,70 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     subparsers = parser.add_subparsers(dest="command")
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Run read-only Argus diagnostics",
+    )
+    doctor_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print a stable machine-readable diagnostic report",
+    )
+    doctor_parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="include backend authentication probes",
+    )
+    doctor_parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="label this run as post-repair verification",
+    )
+    doctor_parser.add_argument(
+        "--fix-safe",
+        action="store_true",
+        help="apply registered SAFE repairs, then rerun Doctor",
+    )
+    repair_parser = subparsers.add_parser(
+        "repair",
+        help="Plan or apply registered Argus recovery actions",
+    )
+    repair_mode = repair_parser.add_mutually_exclusive_group(required=True)
+    repair_mode.add_argument(
+        "--plan",
+        action="store_true",
+        help="show deterministic repair recommendations without modifying state",
+    )
+    repair_mode.add_argument(
+        "--safe",
+        action="store_true",
+        help="plan and apply only registered SAFE actions, then verify",
+    )
+    repair_mode.add_argument(
+        "--apply",
+        metavar="PLAN_ID",
+        help="apply one persisted plan (CONSENT actions also require --yes)",
+    )
+    repair_mode.add_argument(
+        "--prepare-pr",
+        metavar="PLAN_ID",
+        help="write a sanitized upstream repair report without publishing it",
+    )
+    repair_mode.add_argument(
+        "--submit-pr",
+        metavar="PLAN_ID",
+        help="submit an explicitly authorized prepared repository repair",
+    )
+    repair_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm CONSENT actions or external PR publication",
+    )
+    repair_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print a stable machine-readable repair result",
+    )
     subparsers.add_parser(
         "update",
         help="Safely fast-forward and reinstall this source checkout",
