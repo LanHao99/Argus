@@ -88,12 +88,28 @@ The agent will follow the **[installation execution contract](docs/agent-install
 ```bash
 git clone https://github.com/lbx154/Argus.git
 cd Argus
+```
 
+Linux and macOS:
+
+```bash
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-pip install -e .
+python -m pip install -e .
 ```
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e .
+```
+
+The Windows commands call the virtual environment directly, so activation is
+not required. Before using the shorter `argus` commands below, either run
+`.\.venv\Scripts\Activate.ps1` or invoke `.\.venv\Scripts\argus.exe` directly.
 
 ### Connect a backend
 
