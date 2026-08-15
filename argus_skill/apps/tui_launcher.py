@@ -156,7 +156,7 @@ def _uses_python_admin(argv: list[str]) -> bool:
     if "--web" in argv and any(
         arg == option or arg.startswith(f"{option}=")
         for arg in argv
-        for option in ("--web-host", "--web-port")
+        for option in ("--web-host", "--host", "--web-port", "--port")
     ):
         return True
     i = 0

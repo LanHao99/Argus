@@ -97,7 +97,7 @@ declare global {
       openLogs(): Promise<string>;
       openData(): Promise<string>;
       restartBackend(): Promise<boolean>;
-      exportDiagnostics(): Promise<string>;
+      exportDiagnostics(): Promise<string | null>;
       openCockpit(): Promise<void>;
       onShowSetup(callback: () => void): () => void;
       onNewChat(callback: () => void): () => void;
@@ -405,6 +405,7 @@ diagnosticsEl.addEventListener('click', () => {
       renderIpcFailure('无法导出诊断', result.detail);
       return;
     }
+    if (!result.value) return;
     detailEl.hidden = false;
     detailEl.textContent = `脱敏诊断已导出：${result.value}`;
   }).finally(() => {

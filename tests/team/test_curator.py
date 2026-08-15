@@ -407,7 +407,11 @@ def test_reap_hard_timeout_killpg_and_fails_task(tmp_path: Path, monkeypatch) ->
     task_board.form(root, [{"task_id": "t::a", "objective": "x"}])
     killed: list = []
     if os.name == "nt":
-        monkeypatch.setattr(cur, "_terminate_windows_tree", lambda pid: killed.append((pid, "force")))
+        monkeypatch.setattr(
+            cur,
+            "_terminate_windows_tree",
+            lambda proc: killed.append((proc.pid, "force")) or True,
+        )
     else:
         monkeypatch.setattr(cur.os, "killpg", lambda pgid, sig: killed.append((pgid, sig)))
         monkeypatch.setattr(cur.os, "getpgid", lambda pid: pid)
@@ -424,6 +428,7 @@ def test_reap_hard_timeout_killpg_and_fails_task(tmp_path: Path, monkeypatch) ->
     assert task["state"] == "failed"
     member = next(m for m in roster.members(root) if m["id"] == tt.member_id)
     assert member["status"] == "failed"
+    assert c._children == {}
 
 
 def test_reap_keeps_tracking_when_termination_does_not_finish(

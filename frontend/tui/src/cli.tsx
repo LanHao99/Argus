@@ -30,8 +30,8 @@ import { projectsForLaunchCwd } from '../../core/src/projects.js';
 import { openWebBrowser, resolvePairing, webUiUrl, withProject } from './webLaunch.js';
 import { createImeCursorOutput, ImeCursorProvider } from './imeCursor.js';
 import { InteractiveExitLifecycle } from './exitLifecycle.js';
-import { installParentExitGuard } from './parentExitGuard.js';
 import { selectApiPort } from './portSelection.js';
+import { installParentExitGuard } from './parentExitGuard.js';
 
 /** A small spinner shown if the animation finishes before the API is reachable. */
 function Connecting({ note }: { note: string }) {

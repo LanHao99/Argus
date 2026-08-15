@@ -153,6 +153,10 @@ ARGUS_BIN="$HOME/Argus/.venv/bin/argus"
 "$ARGUS_BIN"
 ```
 
+私有 Preview 协作者在 Linux clone 命令中改用
+`https://github.com/lbx154/argus-skill.git`。Windows/macOS 应安装私有 wheel
+或经过认证的私有 archive，不要把 GitHub token 写进 shell history。
+
 Linux 新终端不要依赖全局 `argus`；请使用
 `$HOME/Argus/.venv/bin/argus`（或显式激活该 venv）。如果创建 venv 时提示缺少
 `ensurepip`，安装发行版的 `python3-venv` 包后重试。
@@ -196,10 +200,6 @@ argus --setup --non-interactive --backend grok
 无界面环境也可以使用 `XAI_API_KEY`。Argus 通过 Grok 原生 headless JSON
 流运行、按 Session ID 续接，并避免把角色 prompt 放进进程参数。
 PowerShell 多行续行符为反引号，不是 `\`。
-
-用 `argus --config-help` 可以查看每个角色最终使用的模型及配置来源。模型目录查询
-命令因 backend 而异，例如 `pi --list-models`、`opencode auth list` 和
-`qodercli --list-models`。
 
 #### 为多 provider 的 CLI 指定 provider
 

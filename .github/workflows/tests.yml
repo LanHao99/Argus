@@ -74,9 +74,8 @@ env:
     tests/webapi/test_server_m0.py
     tests/webapi/test_workspace_v2.py
 
-  # Files that previously failed at collection time because a test-only POSIX
-  # prerequisite was imported unconditionally. Collection must remain clean on
-  # Windows even when an individual POSIX assertion is reported as skipped.
+  # These modules must remain collectable on Windows even when individual
+  # POSIX-only assertions are reported as skipped.
   WINDOWS_COLLECTION_TESTS: >-
     tests/core/test_file_lock.py
     tests/core/test_daemon_lock.py

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
-import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -160,16 +160,23 @@ def test_provider_exit_cleans_descendants_before_waiting_for_pipe_eof() -> None:
     assert state.orphan_process_group_cleanup_succeeded is True
 
 
-@pytest.mark.skipif(
-    os.name != "posix" or shutil.which("setsid") is None,
-    reason="requires POSIX process-group isolation and the setsid executable",
-)
+@pytest.mark.skipif(os.name != "posix", reason="requires POSIX process-group isolation")
 def test_provider_exit_does_not_wait_for_separate_owned_process_pipes() -> None:
     runner = AgentCliRunner(agent_bin=sys.executable)
     command = [
-        "bash",
+        sys.executable,
         "-c",
-        "setsid sleep 30 & echo $!",
+        (
+            "import subprocess, sys; "
+            "child = subprocess.Popen("
+            "[sys.executable, '-c', "
+            "'import time; time.sleep(0.5); "
+            "[(print(f\"tick-{i}\", flush=True), time.sleep(0.05)) "
+            "for i in range(600)]'], "
+            "start_new_session=True"
+            "); "
+            "print(f'CHILD_PID={child.pid}', flush=True)"
+        ),
     ]
     provider = subprocess.Popen(
         command,
@@ -188,19 +195,42 @@ def test_provider_exit_does_not_wait_for_separate_owned_process_pipes() -> None:
             run_label="test-independent-pipes",
             thread_id=None,
         )
-        child_pid = int(state.stdout_lines[-1])
+        child_pid = next(
+            int(line.removeprefix("CHILD_PID="))
+            for line in state.stdout_lines
+            if line.startswith("CHILD_PID=")
+        )
 
-        # The regression this guards against waits for the detached
-        # grandchild's pipes to hit EOF, which cannot happen before the
-        # ``sleep 30`` child exits — so anything well under 30s proves the
-        # pipes were not awaited. 3s turned out too tight on shared CI
-        # runners (~4.5s observed), hence 15s.
+        # A leaked grandchild pipe blocks until the 30-second child exits.
+        # Shared CI runners can take several seconds to schedule the reader
+        # shutdown, so keep the bound decisive without treating load as a leak.
         assert time.monotonic() - started < 15
         assert state.orphan_process_group_id == 0
+        time.sleep(1)
         os.kill(child_pid, 0)
+        reader_prefix = f"argus-provider-pipe-{provider.pid}-"
+        assert [
+            thread
+            for thread in threading.enumerate()
+            if thread.name.startswith(reader_prefix)
+        ]
     finally:
         if child_pid:
             try:
                 os.kill(child_pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
+        reader_prefix = f"argus-provider-pipe-{provider.pid}-"
+        deadline = time.monotonic() + 2
+        while (
+            any(
+                thread.name.startswith(reader_prefix)
+                for thread in threading.enumerate()
+            )
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.01)
+        assert not any(
+            thread.name.startswith(reader_prefix)
+            for thread in threading.enumerate()
+        )

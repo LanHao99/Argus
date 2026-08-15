@@ -162,6 +162,7 @@ ARGUS_BIN="$HOME/Argus/.venv/bin/argus"
 "$ARGUS_BIN" --version
 ```
 
+Private-preview collaborators may use the authorized private repository instead.
 If the checkout already exists, inspect `git status`; update only a clean branch
 with `git pull --ff-only`, then refresh the editable install.
 

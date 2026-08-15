@@ -74,6 +74,21 @@ test('a remote host keeps its requested port without attempting a local bind', a
   assert.equal(bound, false);
 });
 
+test('a wildcard bind advances past an outdated occupied backend', async () => {
+  const port = await selectApiPort(
+    { host: '0.0.0.0', preferredPort: 8799, explicit: false },
+    {
+      probe: async () => ({
+        state: 'incompatible',
+        message: 'release mismatch',
+        meta: {} as ApiProbeResult['meta'],
+      }),
+      available: async (_host, candidate) => candidate === 8800,
+    },
+  );
+  assert.equal(port, 8800);
+});
+
 test('an occupied incompatible preferred port advances to the first available port', async () => {
   const checked: number[] = [];
   const port = await selectApiPort(

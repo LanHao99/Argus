@@ -65,18 +65,13 @@ def _windows_process_command_line(pid: int) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def _terminate_windows_tree(pid: int) -> bool:
-    try:
-        result = subprocess.run(
-            ["taskkill.exe", "/PID", str(int(pid)), "/T", "/F"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-    except OSError:
-        return False
-    return result.returncode == 0
+def _terminate_windows_tree(proc: Any) -> bool:
+    from ..daemon.state import _terminate_windows_process_tree
+
+    return _terminate_windows_process_tree(
+        int(proc.pid),
+        identity_check=lambda: proc.poll() is None,
+    )
 
 
 def _open_windows_process_handle(pid: int) -> int:
@@ -462,10 +457,10 @@ class Curator:
         if proc.poll() is not None:
             return True
         if os.name == "nt":
-            _terminate_windows_tree(proc.pid)
+            tree_stopped = _terminate_windows_tree(proc)
             with contextlib.suppress(subprocess.TimeoutExpired):
                 proc.wait(timeout=max(grace, 5.0))
-            return proc.poll() is not None
+            return tree_stopped and proc.poll() is not None
         try:
             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
         except (OSError, ProcessLookupError):
