@@ -844,6 +844,8 @@ def test_frontdoor_classifier_failure_never_dispatches_unclassified_message(
 
     assert result["kind"] == "chat"
     assert result["reply"].startswith("[not dispatched]")
+    assert "Manager backend" in result["reply"]
+    assert "argus doctor --deep" in result["reply"]
     assert LifeMemory.open(life).backlog.all() == []
 
 
@@ -1542,7 +1544,7 @@ def test_explicit_pending_answer_continues_without_a_model_call(
     assert "Inherited blocked mission objective" in continuation.objective
     assert continuation.iterate is False
     assert continuation.tags == [
-        "paper", "operator-reply", "manager-approved",
+        "paper", "operator-reply", "manager-approved", "review:required",
     ]
     assert "MANAGER OPERATOR-ANSWER DECISION" in (
         life / "inbox.jsonl"

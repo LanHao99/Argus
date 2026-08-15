@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
 
@@ -52,7 +51,11 @@ def test_configure_framework_python_env_prepends_current_interpreter(tmp_path) -
     system_bin = tmp_path / "system-bin"
     env = {"PATH": str(system_bin)}
 
-    configured = configure_framework_python_env(env, executable=interpreter)
+    configured = configure_framework_python_env(
+        env,
+        executable=interpreter,
+        prepend_python_path=True,
+    )
 
     assert configured is env
     assert env["ARGUS_SKILL_PYTHON"] == str(interpreter)
@@ -62,26 +65,27 @@ def test_configure_framework_python_env_prepends_current_interpreter(tmp_path) -
         assert env["PYTHONIOENCODING"] == "utf-8"
 
 
-def test_configure_framework_python_env_preserves_explicit_runtime_and_deduplicates_path(
+def test_configure_framework_python_env_preserves_explicit_python_and_deduplicates_path(
     tmp_path,
 ) -> None:
     explicit = tmp_path / "explicit-venv" / ("Scripts" if os.name == "nt" else "bin") / "python"
     fallback = tmp_path / "fallback-venv" / ("Scripts" if os.name == "nt" else "bin") / "python"
-    runtime_bin = tmp_path / "runtime-bin"
     system_bin = tmp_path / "system-bin"
     env = {
         "ARGUS_SKILL_PYTHON": str(explicit),
-        "ARGUS_SKILL_RUNTIME_BIN": str(runtime_bin),
         "PATH": os.pathsep.join(
-            [str(system_bin), str(explicit.parent), str(runtime_bin), str(explicit.parent)]
+            [str(system_bin), str(explicit.parent), str(explicit.parent)]
         ),
     }
 
-    configure_framework_python_env(env, executable=fallback)
+    configure_framework_python_env(
+        env,
+        executable=fallback,
+        prepend_python_path=True,
+    )
 
     assert env["ARGUS_SKILL_PYTHON"] == str(explicit)
     assert env["PATH"].split(os.pathsep) == [
-        str(runtime_bin),
         str(explicit.parent),
         str(system_bin),
     ]
@@ -102,6 +106,5 @@ def test_cli_entrypoint_normalizes_framework_python_before_argument_handling(
 
     assert exit_info.value.code == 0
     framework_python = os.environ["ARGUS_SKILL_PYTHON"]
-    assert os.environ["PATH"].split(os.pathsep)[0] == str(
-        Path(framework_python).resolve().parent
-    )
+    assert framework_python
+    assert os.environ["PATH"] == str(tmp_path / "unrelated-python")

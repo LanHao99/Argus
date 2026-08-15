@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import base64
+import hashlib
 import os
+import re
 
+_LEGACY_HASHED_COMPONENT = re.compile(r"(?:argus-)?id-[0-9a-f]{64}\Z", re.IGNORECASE)
 _WINDOWS_RESERVED = frozenset({
     "con",
     "prn",
@@ -23,12 +25,14 @@ def portable_filename_component(
     text = str(value)
     raw = text.encode("utf-8")
     if len(raw) > max_bytes:
-        raise ValueError(f"identifier exceeds {max_bytes} UTF-8 bytes")
+        digest = hashlib.sha256(raw).hexdigest()
+        return f"argus-id-{digest}"
     on_windows = os.name == "nt" if windows is None else windows
     stem = text.split(".", 1)[0].casefold()
     unsafe = (
         not text
         or text.startswith("~")
+        or _LEGACY_HASHED_COMPONENT.fullmatch(text) is not None
         or any(char in text for char in "/\\\0")
         or (
             on_windows
@@ -41,8 +45,20 @@ def portable_filename_component(
     )
     if not unsafe:
         return text
-    encoded = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+    encoded = raw.hex()
     return f"~{encoded}"
 
 
-__all__ = ["portable_filename_component"]
+def legacy_hashed_filename_components(value: str) -> tuple[str, ...]:
+    text = str(value)
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    components = [f"argus-id-{digest}", f"id-{digest}"]
+    if (
+        (text.startswith("~") or _LEGACY_HASHED_COMPONENT.fullmatch(text))
+        and not any(char in text for char in "/\\\0")
+    ):
+        components.append(text)
+    return tuple(components)
+
+
+__all__ = ["legacy_hashed_filename_components", "portable_filename_component"]

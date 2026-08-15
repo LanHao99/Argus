@@ -200,11 +200,18 @@ def _configure_runner_backend(requested: str | None = None) -> str | None:
     selected = (
         str(requested).strip().lower()
         if requested is not None
-        else _prompt("Backend (copilot/codex/claude/opencode/pi/grok/qoder/dsh)", default).lower()
+        else _prompt(
+            "Backend (copilot/codex/claude/opencode/pi/grok/qoder/dsh)", default
+        ).lower()
     )
     if selected not in _SUPPORTED_AGENT_BACKENDS:
         print(_yellow(f"  Unknown backend '{selected}'."))
-        print(_dim("    Choose one of: copilot, codex, claude, opencode, pi, grok, qoder, dsh"))
+        print(
+            _dim(
+                "    Choose one of: copilot, codex, claude, opencode, pi, grok, "
+                "qoder, dsh"
+            )
+        )
         print()
         return None
 

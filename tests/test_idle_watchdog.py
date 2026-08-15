@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
-import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -160,16 +160,20 @@ def test_provider_exit_cleans_descendants_before_waiting_for_pipe_eof() -> None:
     assert state.orphan_process_group_cleanup_succeeded is True
 
 
-@pytest.mark.skipif(
-    os.name != "posix" or shutil.which("setsid") is None,
-    reason="requires POSIX process-group isolation and the setsid executable",
-)
+@pytest.mark.skipif(os.name != "posix", reason="requires POSIX process-group isolation")
 def test_provider_exit_does_not_wait_for_separate_owned_process_pipes() -> None:
     runner = AgentCliRunner(agent_bin=sys.executable)
     command = [
-        "bash",
+        sys.executable,
         "-c",
-        "setsid sleep 30 & echo $!",
+        (
+            "import subprocess, sys; "
+            "child = subprocess.Popen("
+            "[sys.executable, '-c', 'import time; time.sleep(30)'], "
+            "start_new_session=True"
+            "); "
+            "print(child.pid, flush=True)"
+        ),
     ]
     provider = subprocess.Popen(
         command,
@@ -190,14 +194,15 @@ def test_provider_exit_does_not_wait_for_separate_owned_process_pipes() -> None:
         )
         child_pid = int(state.stdout_lines[-1])
 
-        # The regression this guards against waits for the detached
-        # grandchild's pipes to hit EOF, which cannot happen before the
-        # ``sleep 30`` child exits — so anything well under 30s proves the
-        # pipes were not awaited. 3s turned out too tight on shared CI
-        # runners (~4.5s observed), hence 15s.
-        assert time.monotonic() - started < 15
+        assert time.monotonic() - started < 3
         assert state.orphan_process_group_id == 0
         os.kill(child_pid, 0)
+        reader_prefix = f"argus-provider-pipe-{provider.pid}-"
+        assert not [
+            thread
+            for thread in threading.enumerate()
+            if thread.name.startswith(reader_prefix)
+        ]
     finally:
         if child_pid:
             try:

@@ -37,6 +37,7 @@ def test_release_digest_covers_runtime_and_frontend_build_inputs() -> None:
         "plugins/argus/skills/argus-run/SKILL.md",
         "plugins/argus/bin/argus-plugin-mcp",
         "plugins/argus/install.sh",
+        "plugins/argus/install.ps1",
     }.issubset(included)
     assert "frontend/web/dist/index.html" not in included
     assert "frontend/tui/bundle/argus.mjs" not in included

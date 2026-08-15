@@ -402,10 +402,7 @@ class CommandBuilderMixin:
         if options.model:
             command.extend(["--model", options.model])
         if options.reasoning_effort:
-            # Both claude (--effort) and qodercli (--reasoning-effort) accept the
-            # full set low/medium/high/xhigh/max, so pass the level through
-            # unchanged. (Previously xhigh was downgraded to high, which capped
-            # claude below its top two gears.)
+            # Both Claude and Qoder accept the full configured effort range.
             command.extend(
                 ["--reasoning-effort" if is_qoder else "--effort",
                  options.reasoning_effort]

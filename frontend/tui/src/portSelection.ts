@@ -48,7 +48,11 @@ export async function selectApiPort(
   const available = deps.available ?? isPortAvailable;
   const preferredProbe = await probe(options.host, options.preferredPort, options.token);
   if (preferredProbe.state === 'compatible') return options.preferredPort;
-  if (preferredProbe.state === 'incompatible' && preferredProbe.meta) {
+  if (
+    preferredProbe.state === 'incompatible'
+    && preferredProbe.meta
+    && isLocalApiHost(options.host)
+  ) {
     return options.preferredPort;
   }
   const host = options.host.trim().toLowerCase();

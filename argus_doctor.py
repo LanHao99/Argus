@@ -125,7 +125,7 @@ def run_bootstrap_doctor(root=None):
         checkout_runtime is not None or import_ok,
         (
             str(checkout_runtime) if checkout_runtime is not None
-            else f"current interpreter is usable without checkout .venv: {runtime}"
+            else f"current interpreter is usable without checkout .venv (bootstrap fallback): {runtime}"
             if import_ok else "checkout .venv is missing and current interpreter cannot import Argus"
         ),
         "recreate .venv with Python 3.11+ and reinstall the checkout",

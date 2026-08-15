@@ -161,6 +161,11 @@ ARGUS_BIN="$HOME/Argus/.venv/bin/argus"
 "$ARGUS_BIN"
 ```
 
+Private-preview collaborators use
+`https://github.com/lbx154/argus-skill.git` in the Linux clone command. On
+Windows/macOS, install a private wheel or authenticated private archive rather
+than putting a GitHub token in shell history.
+
 Do not rely on a globally installed `argus` on Linux. In a new shell, use
 `$HOME/Argus/.venv/bin/argus` (or activate that venv explicitly). If venv
 creation reports that `ensurepip` is unavailable, install the distribution's
@@ -234,9 +239,9 @@ restarts once set there.
 configured provider is not one you hold a key for, or when a model id you
 selected is not on offer.
 
-Use `argus --config-help` to inspect the effective model and its source for each
-role. Catalog listing is backend-specific, for example `pi --list-models`,
-`opencode auth list`, or `qodercli --list-models`.
+Use `argus --config-help` to inspect each role's effective model and where it
+came from. Catalog commands are backend-specific, for example
+`pi --list-models`, `opencode auth list`, and `qodercli --list-models`.
 
 Full details, including the breaking change for Pi deployments that relied on
 the old implicit `github-copilot` prefix: **[backend providers](docs/backend-providers.md)**.
