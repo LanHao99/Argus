@@ -332,7 +332,7 @@ def build_parser() -> argparse.ArgumentParser:
     capability_grp.add_argument(
         "--non-interactive",
         action="store_true",
-        help="with --setup: never prompt; requires --backend and --accept-house-rules",
+        help="with --setup: never prompt; requires --backend or --api-url",
     )
     capability_grp.add_argument(
         "--accept-house-rules",
