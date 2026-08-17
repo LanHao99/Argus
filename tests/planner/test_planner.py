@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from argus_skill.core.models import RunnerResult
 from argus_skill.planner.planner import (
+    FORBIDDEN_BARE_VERDICT_ERROR,
     NO_CONCRETE_TASKS_ERROR,
     OPEN_ENDED_PROJECT_DONE_ERROR,
     PLANNER_SUPERSEDED_ERROR,
@@ -119,7 +120,7 @@ def test_planner_prompt_requires_read_only_delegation_and_plain_key_values() -> 
     assert "official implementations" in _PLANNER_CORE_CONTRACT
 
 
-def test_finite_planner_accepts_explicit_no_go_while_standing_keeps_exploring(
+def test_planner_forbids_binary_outcome_labels_and_standing_keeps_exploring(
     tmp_path,
 ) -> None:
     finite = Planner._build_planner_prompt(
@@ -141,9 +142,34 @@ def test_finite_planner_accepts_explicit_no_go_while_standing_keeps_exploring(
         open_ended=True,
     )
 
-    assert "same holds for an accepted" in finite.lower()
+    assert "accepted " + "no" + "-go" not in finite.lower()
+    assert "bare launch verdict" in finite.lower()
+    assert "what happened" in finite
+    assert "timing/profiling" in finite
     assert "This campaign remains active until the operator stops it" not in finite
     assert "This campaign remains active until the operator stops it" in standing
+
+
+def test_parse_planner_rejects_binary_outcome_label() -> None:
+    forbidden_label = "no" + "-go"
+    verdict = parse_planner_text(
+        "\n".join(
+            [
+                "PROJECT_DONE=false",
+                "REASON=The current route needs a replacement.",
+                "TASK_TITLE=Measure the replacement route",
+                "TASK_OBJECTIVE=Profile the runtime and test a controlled alternative.",
+                (
+                    "TASK_ACCEPTANCE_CHECK=Write a documented "
+                    f"{forbidden_label} if it misses the threshold."
+                ),
+            ]
+        )
+    )
+
+    assert verdict.project_done is False
+    assert verdict.new_tasks == []
+    assert verdict.error == FORBIDDEN_BARE_VERDICT_ERROR
 
 
 def test_parse_task_scope_accepts_final_certification_annotation() -> None:
@@ -303,6 +329,51 @@ def test_plan_next_repairs_not_done_empty_task_response(monkeypatch) -> None:
     assert "TASK_OBJECTIVE=..." in runner.calls[1]["prompt"]
     assert "review, stage, or Skill control fields" in runner.calls[1]["prompt"]
     assert runner.calls[1]["options"].working_dir == "/tmp/project"
+
+def test_plan_next_repairs_binary_outcome_label(monkeypatch) -> None:
+    forbidden_label = "no" + "-go"
+    runner = _SequenceRunner([
+        "\n".join(
+            [
+                "PROJECT_DONE=false",
+                f"REASON=The route is a {forbidden_label}.",
+                "TASK_TITLE=Replace the route",
+                "TASK_OBJECTIVE=Implement the presumed replacement.",
+            ]
+        ),
+        "\n".join(
+            [
+                "PROJECT_DONE=false",
+                "REASON=The current measurement is inconclusive.",
+                "TASK_TITLE=Attribute the runtime",
+                (
+                    "TASK_OBJECTIVE=Inspect the hot path and live waits, then run "
+                    "phase timing or a controlled comparison."
+                ),
+                (
+                    "TASK_ACCEPTANCE_CHECK=Evidence explains a material share of "
+                    "elapsed time or states that the cause is still unclear."
+                ),
+            ]
+        ),
+    ])
+    monkeypatch.setattr(
+        Planner,
+        "_build_planner_prompt",
+        staticmethod(lambda **kwargs: "original planner prompt"),
+    )
+
+    verdict = Planner(runner).plan_next(
+        continuous_objective="diagnose the slow route",
+        planning_cycle=4,
+        config=PlannerConfig(working_dir="/tmp/project"),
+    )
+
+    assert verdict.error == ""
+    assert [task.title for task in verdict.new_tasks] == ["Attribute the runtime"]
+    assert runner.calls[1]["run_label"] == "planner.cycle4.repair1"
+    assert FORBIDDEN_BARE_VERDICT_ERROR in runner.calls[1]["prompt"]
+    assert "what failed, why" in runner.calls[1]["prompt"]
 
 
 def test_plan_next_downgrades_invalid_skip_hint_without_repair_call(
